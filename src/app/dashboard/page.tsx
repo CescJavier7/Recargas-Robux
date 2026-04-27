@@ -1,179 +1,167 @@
-"use client";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { Zap, Clock, CheckCircle2, XCircle, AlertCircle, User } from "lucide-react";
 
-import { useState, useTransition } from "react";
-import { Upload, CreditCard, Loader2, QrCode, ShoppingCart, User, Trash2, Landmark, X } from "lucide-react";
-import { useCartStore } from "@/store/cartStore";
-import { submitOrder } from "@/actions/order";
-import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+// Forzamos a que esta página sea dinámica y no se quede cacheada eternamente
+export const dynamic = "force-dynamic";
 
-export default function CheckoutPage() {
-  const router = useRouter();
-  const { items, getTotalPrice, getTotalRobux, removeItem, clearCart } = useCartStore();
-  const totalRobux = getTotalRobux();
-  const totalPrice = getTotalPrice();
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: { success?: string };
+}) {
 
-  const [paymentMethod, setPaymentMethod] = useState<"transfer" | "card">("transfer");
-  const [username, setUsername] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [errorMsg, setErrorMsg] = useState("");
-  const [isPending, startTransition] = useTransition();
-  const [showQR, setShowQR] = useState(false);
+  const cookieStore = await cookies();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (items.length === 0) return setErrorMsg("Tu carrito está vacío.");
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+      },
+    }
+  );
+
+  // 1. Verificamos la sesión
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login");
+  }
+
+  // 2. Extraemos las órdenes, forzando a que SOLO traiga las de este usuario
+  const { data: orders, error } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("user_id", user.id) // <--- EL ESCUDO FILTRADOR
+    .order("created_at", { ascending: false });
     
-    if (paymentMethod === "transfer") {
-      if (!file || !username) return setErrorMsg("Falta tu usuario o comprobante.");
-      
-      startTransition(async () => {
-        const formData = new FormData();
-        formData.append("totalRobux", totalRobux.toString());
-        formData.append("totalPrice", totalPrice.toString());
-        formData.append("username", username);
-        formData.append("file", file);
-        formData.append("cartItems", JSON.stringify(items));
+  if (error) {
+    console.error("Error crítico leyendo base de datos:", error.message);
+  }
 
-        const result = await submitOrder(formData);
-        if (result.success) {
-          clearCart();
-          router.push("/dashboard?success=true");
-        } else {
-          setErrorMsg(result.error || "Fallo en el servidor.");
-        }
-      });
-    } else {
-      setErrorMsg("La pasarela de tarjetas está siendo encriptada. Usa transferencia por ahora.");
+  // Función auxiliar para los colores y logos de estado
+  const getStatusConfig = (status: string) => {
+    switch (status) {
+      case "PENDING":
+        return { color: "text-yellow-400 border-yellow-400/50 bg-yellow-400/10", icon: <Clock className="w-4 h-4" />, text: "En Revisión" };
+      case "PAID":
+        return { color: "text-neon-cyan border-neon-cyan/50 bg-neon-cyan/10", icon: <CheckCircle2 className="w-4 h-4" />, text: "Pago Verificado" };
+      case "COMPLETED":
+        return { color: "text-neon-green border-neon-green/50 bg-neon-green/10", icon: <Zap className="w-4 h-4" />, text: "Robux Enviados" };
+      case "CANCELLED":
+        return { color: "text-neon-pink border-neon-pink/50 bg-neon-pink/10", icon: <XCircle className="w-4 h-4" />, text: "Rechazada" };
+      default:
+        return { color: "text-slate-400 border-slate-700 bg-dark-800", icon: <AlertCircle className="w-4 h-4" />, text: "Desconocido" };
     }
   };
 
-  if (items.length === 0) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-950">
-        <ShoppingCart className="w-12 h-12 text-slate-300" />
-        <p className="text-slate-500 font-display uppercase tracking-widest">El carrito está vacío</p>
-        <button onClick={() => router.push("/#robux")} className="text-neon-cyan font-bold hover:underline">Volver al catálogo</button>
-      </div>
-    );
-  }
-
   return (
-    <main className="min-h-screen py-12 px-4 sm:px-6 bg-slate-50 dark:bg-slate-950 relative">
-      <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
-        
-        {/* COLUMNA IZQUIERDA: Formulario (Se mantiene igual) */}
-        <div className="space-y-6">
-          <h1 className="text-3xl font-display font-black text-slate-900 dark:text-white uppercase">
-            Terminal de <span className="text-neon-cyan">Pago</span>
-          </h1>
-
-          {errorMsg && (
-            <div className="p-4 bg-neon-pink/10 border border-neon-pink text-neon-pink rounded-xl text-sm font-bold">
-              {errorMsg}
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-4">
-            <button onClick={() => setPaymentMethod("transfer")} className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === "transfer" ? "border-neon-cyan bg-neon-cyan/5 text-neon-cyan" : "border-slate-200 dark:border-slate-800 text-slate-500"}`}>
-              <QrCode className="w-6 h-6" />
-              <span className="text-xs font-bold uppercase tracking-widest">De Una / Banco</span>
-            </button>
-            <button onClick={() => setPaymentMethod("card")} className={`p-4 rounded-xl border-2 flex flex-col items-center gap-2 transition-all ${paymentMethod === "card" ? "border-neon-purple bg-neon-purple/5 text-neon-purple" : "border-slate-200 dark:border-slate-800 text-slate-500"}`}>
-              <CreditCard className="w-6 h-6" />
-              <span className="text-xs font-bold uppercase tracking-widest">Tarjeta</span>
-            </button>
+    <main className="min-h-screen max-w-5xl mx-auto py-12 px-6">
+      
+      {/* Mensaje de Éxito Post-Compra */}
+      {searchParams.success === "true" && (
+        <div className="mb-8 p-4 bg-neon-green/10 border border-neon-green rounded-xl flex items-center gap-3 text-neon-green animate-pulse">
+          <CheckCircle2 className="w-6 h-6" />
+          <div>
+            <h3 className="font-display font-bold uppercase tracking-widest">Transacción Exitosa</h3>
+            <p className="text-sm">Tu comprobante ha sido subido al sistema. Lo verificaremos a la velocidad de la luz.</p>
           </div>
-
-          <form onSubmit={handleSubmit} className="bg-white dark:bg-dark-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-6">
-            <div>
-              <label className="block text-xs font-display tracking-widest uppercase mb-2 text-slate-500">ID de Roblox</label>
-              <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input type="text" required value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Tu usuario exacto" className="w-full bg-slate-50 dark:bg-dark-800 border border-slate-200 dark:border-slate-700 rounded-xl py-3 pl-12 pr-4 outline-none focus:border-neon-cyan text-slate-900 dark:text-white" />
-              </div>
-            </div>
-
-            {paymentMethod === "transfer" && (
-              <div className="space-y-6 animate-in fade-in duration-300">
-                <button type="button" onClick={() => setShowQR(true)} className="w-full p-4 bg-neon-cyan/5 border border-dashed border-neon-cyan/50 text-neon-cyan font-display font-bold uppercase tracking-widest rounded-xl hover:bg-neon-cyan/10 transition-all flex items-center justify-center gap-3">
-                  <QrCode className="w-6 h-6" />
-                  Ver QR y Datos Bancarios
-                </button>
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-dark-800 transition-all">
-                  <Upload className={`w-6 h-6 mb-2 ${file ? 'text-neon-green' : 'text-slate-400'}`} />
-                  <span className="text-xs text-slate-500 px-4 text-center truncate w-full">{file ? file.name : "Subir comprobante"}</span>
-                  <input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files && setFile(e.target.files[0])} required />
-                </label>
-              </div>
-            )}
-
-            <button disabled={isPending} className={`w-full py-4 rounded-xl font-display font-black uppercase tracking-widest transition-all shadow-lg flex justify-center gap-2 ${paymentMethod === 'card' ? 'bg-neon-purple text-white' : 'bg-neon-cyan text-dark-900'}`}>
-              {isPending ? <Loader2 className="animate-spin w-6 h-6" /> : paymentMethod === 'card' ? 'Pagar con Tarjeta' : 'Confirmar Transferencia'}
-            </button>
-          </form>
         </div>
+      )}
 
-        {/* COLUMNA DERECHA: Resumen con Opción de Borrar */}
-        <div className="bg-white dark:bg-dark-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 h-fit sticky top-24 shadow-sm">
-          <h2 className="text-sm font-display font-bold uppercase tracking-widest mb-6 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-4 text-slate-900 dark:text-white">
-            <ShoppingCart className="w-5 h-5 text-neon-cyan" /> Resumen de Carga
-          </h2>
-          
-          <div className="space-y-4 mb-6">
-            <AnimatePresence>
-              {items.map((item) => (
-                <motion.div 
-                  layout
-                  key={item.id} 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  className="flex justify-between items-center group"
-                >
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => removeItem(item.id)} 
-                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-neon-pink transition-all"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                    <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{item.robux} R$</span>
-                  </div>
-                  <span className="text-sm font-mono text-slate-500">${item.price.toFixed(2)}</span>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-
-          <div className="border-t border-slate-100 dark:border-slate-800 pt-4 flex justify-between items-center">
-            <span className="text-xs font-display uppercase tracking-widest text-slate-500">Total a Pagar</span>
-            <span className="text-2xl font-black text-neon-cyan">${totalPrice.toFixed(2)}</span>
-          </div>
-          <p className="text-[10px] text-slate-400 mt-4 text-center font-mono">Total Robux: {totalRobux} R$</p>
-        </div>
+      <div className="flex items-center justify-between mb-10">
+        <h1 className="text-3xl md:text-4xl font-display font-black text-slate-900 dark:text-white uppercase tracking-tighter">
+          Centro de <span className="text-neon-cyan">Comando</span>
+        </h1>
       </div>
+      
+      {/* Grid de Órdenes */}
+      {orders && orders.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {orders.map((order) => {
+            const status = getStatusConfig(order.status);
+            
+            return (
+              <div key={order.id} className="bg-white dark:bg-dark-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 hover:shadow-xl dark:hover:shadow-neon-cyan/5 transition-all group relative overflow-hidden flex flex-col justify-between">
+                
+                {/* Brillo de fondo (Solo Dark Mode) */}
+                <div className={`absolute -right-12 -top-12 w-32 h-32 rounded-full blur-[50px] opacity-10 dark:opacity-20 transition-colors ${status.color.split(' ')[0].replace('text-', 'bg-')}`}></div>
 
-      {/* Modal QR (Se mantiene igual) */}
-      {showQR && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-dark-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm shadow-2xl p-6 space-y-6">
-            <div className="flex justify-between items-center">
-              <h3 className="font-display font-bold text-slate-900 dark:text-white uppercase text-sm tracking-widest flex items-center gap-2">
-                <Landmark className="w-5 h-5 text-neon-cyan" /> Datos Bancarios
-              </h3>
-              <button onClick={() => setShowQR(false)} className="text-slate-400 hover:text-neon-pink"><X /></button>
-            </div>
-            <div className="w-full h-48 bg-slate-100 dark:bg-dark-800 rounded-2xl border-2 border-neon-cyan flex items-center justify-center text-xs text-slate-400 font-mono">
-              [ TU IMAGEN QR AQUÍ ]
-            </div>
-            <div className="space-y-2 text-sm font-mono bg-slate-50 dark:bg-dark-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
-               <p className="text-neon-cyan font-bold uppercase mb-1">C. Montatixe</p>
-               <p className="flex justify-between"><span>Pichincha:</span> <span className="text-slate-900 dark:text-white font-bold">2200XXXXX</span></p>
-               <p className="flex justify-between"><span>De Una:</span> <span className="text-slate-900 dark:text-white font-bold">099XXXXXXX</span></p>
-            </div>
-            <button onClick={() => setShowQR(false)} className="w-full py-3 bg-dark-900 dark:bg-white text-white dark:text-dark-900 font-display font-black uppercase tracking-widest rounded-xl">Cerrar</button>
-          </div>
+                <div className="relative z-10">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500 mb-1 tracking-tighter">ID: {order.id.split('-')[0]}...</p>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <User className="w-4 h-4 text-slate-400" />
+                        {order.roblox_username}
+                      </h3>
+                    </div>
+                    <span className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-display font-bold uppercase tracking-widest border rounded-full ${status.color}`}>
+                      {status.icon}
+                      {status.text}
+                    </span>
+                  </div>
+
+                  {/* DESGLOSE TIPO FACTURA */}
+                  {order.cart_items && order.cart_items.length > 0 && (
+                    <div className="mb-4 p-4 bg-slate-50 dark:bg-dark-800 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                      <p className="text-[10px] text-slate-500 font-display tracking-widest uppercase mb-3 border-b border-slate-200 dark:border-slate-700 pb-2">Desglose de Factura</p>
+                      <ul className="space-y-2">
+                        {order.cart_items.map((item: any, idx: number) => (
+                          <li key={idx} className="flex justify-between items-center text-xs font-mono">
+                            <span className="text-slate-700 dark:text-slate-300">Paquete {item.robux} R$</span>
+                            <span className="text-slate-500 font-bold">${item.price.toFixed(2)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Info de Carga y Precio */}
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    <div className="p-3 bg-slate-50 dark:bg-dark-800 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-display tracking-widest uppercase mb-1">Total Carga</p>
+                      <p className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1">
+                        <Zap className="w-3 h-3 text-yellow-500" fill="currentColor" />
+                        {order.amount_robux}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-slate-50 dark:bg-dark-800 rounded-xl border border-slate-100 dark:border-slate-700/50 text-right">
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-display tracking-widest uppercase mb-1">Total Invertido</p>
+                      <p className="text-base font-light text-neon-cyan">${order.price_usd}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botón de WhatsApp */}
+                {order.status === 'PENDING' && (
+                  <div className="mt-auto pt-2 relative z-10">
+                    <a 
+                      href={`https://wa.me/593983755469?text=¡Hola! Tengo una recarga que procesar%20Orden:%20${order.id.split('-')[0]}%20para%20${order.roblox_username}.`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full py-3 bg-[#25D366]/10 dark:bg-transparent border-2 border-[#25D366] text-[#128C7E] dark:text-[#25D366] rounded-xl text-xs font-display font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-[#25D366] hover:text-white dark:hover:text-dark-900 transition-all duration-300 shadow-sm"
+                    >
+                      <svg className="w-5 h-5 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                      </svg>
+                      <span className="whitespace-nowrap">Acelerar Pedido</span>
+                    </a>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="text-center py-20 bg-white dark:bg-dark-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+          <Zap className="w-12 h-12 text-slate-400 dark:text-slate-600 mx-auto mb-4 opacity-50" />
+          <h2 className="text-xl font-display font-bold text-slate-900 dark:text-white mb-2">No hay misiones activas</h2>
+          <p className="text-slate-500">Aún no has solicitado ninguna recarga de Robux.</p>
         </div>
       )}
     </main>
