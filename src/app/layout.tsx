@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Inter, Orbitron } from "next/font/google";
 import "./globals.css";
 
-// IMPORTACIONES CORRECTAS (NAMED IMPORTS)
+// IMPORTACIONES CORRECTAS
+import FloatingCart from "@/components/FloatingCart"; // Importación por default (sin llaves)
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -38,7 +39,11 @@ export default function RootLayout({
 
           <Footer />
 
+          {/* EL NUEVO CARRITO FLOTANTE */}
+          <FloatingCart />
+
         </ThemeProvider>
+
       </body>
     </html>
   );

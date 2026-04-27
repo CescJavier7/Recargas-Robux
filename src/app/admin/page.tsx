@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { ShieldAlert, CheckCircle, XCircle, ExternalLink, User, Hash, DollarSign, Package } from "lucide-react";
+import OrderDetailsModal from "@/components/OrderDetailsModal";
 
 export const dynamic = "force-dynamic";
 
@@ -86,12 +87,29 @@ export default async function AdminPanel() {
                       <span className="text-[9px] font-mono text-slate-400 mt-1 uppercase tracking-tighter">ID: {order.id.split('-')[0]}</span>
                     </div>
                   </td>
+                  
+                  {/* 👇 COLUMNA DE PAQUETE ACTUALIZADA CON DESGLOSE */}
                   <td className="px-6 py-5">
-                    <div className="inline-flex items-center px-3 py-1 rounded-lg bg-yellow-400/10 border border-yellow-400/20">
-                      <span className="text-yellow-600 dark:text-yellow-400 font-black text-xs leading-none">{order.amount_robux}</span>
-                      <span className="ml-1 text-[9px] text-yellow-600/70 dark:text-yellow-400/70 font-bold uppercase">R$</span>
-                    </div>
+                    {order.cart_items && order.cart_items.length > 0 ? (
+                      <div className="flex flex-col gap-1.5">
+                        {order.cart_items.map((item: any, idx: number) => (
+                          <span key={idx} className="inline-flex items-center w-fit px-2 py-0.5 rounded-md bg-slate-100 dark:bg-dark-800 border border-slate-200 dark:border-slate-700 text-[10px] font-mono text-slate-600 dark:text-slate-400">
+                            {item.robux} R$ <span className="mx-1 opacity-50">|</span> ${item.price.toFixed(2)}
+                          </span>
+                        ))}
+                        <div className="mt-1 flex items-center gap-1 text-xs font-black text-yellow-600 dark:text-yellow-400">
+                          <span className="uppercase text-[9px] tracking-widest">Total:</span> {order.amount_robux} R$
+                        </div>
+                      </div>
+                    ) : (
+                      // Fallback visual para las órdenes viejas
+                      <div className="inline-flex items-center px-3 py-1 rounded-lg bg-yellow-400/10 border border-yellow-400/20">
+                        <span className="text-yellow-600 dark:text-yellow-400 font-black text-xs leading-none">{order.amount_robux}</span>
+                        <span className="ml-1 text-[9px] text-yellow-600/70 dark:text-yellow-400/70 font-bold uppercase">R$</span>
+                      </div>
+                    )}
                   </td>
+
                   <td className="px-6 py-5">
                     <span className="font-mono font-bold text-neon-cyan">${order.price_usd}</span>
                   </td>
@@ -121,6 +139,10 @@ export default async function AdminPanel() {
                   {/* CELDA STICKY: Acciones siempre visibles */}
                   <td className="sticky right-0 bg-white dark:bg-dark-900 group-hover:bg-slate-50 dark:group-hover:bg-dark-800 px-6 py-5 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] dark:shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.3)] z-10">
                     <div className="flex justify-center gap-2">
+                      
+                      {/* 🔥 AQUÍ INSERTAMOS EL NUEVO BOTÓN DE DETALLES 🔥 */}
+                      <OrderDetailsModal order={order} />
+
                       <form action={updateOrderStatus}>
                         <input type="hidden" name="orderId" value={order.id} />
                         <input type="hidden" name="status" value="COMPLETED" />

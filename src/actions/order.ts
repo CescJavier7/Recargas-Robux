@@ -4,17 +4,6 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 
-const ROBUX_PRICES: Record<string, number> = {
-  "40": 0.75,
-  "80": 1.35,
-  "400": 6.00,
-  "800": 12.00,
-  "1200": 17.50,
-  "1700": 24.00,
-  "3150": 41.00,
-  "4500": 60.00,
-};
-
 export async function submitOrder(formData: FormData) {
   try {
     const cookieStore = await cookies();
@@ -24,47 +13,52 @@ export async function submitOrder(formData: FormData) {
       { cookies: { getAll() { return cookieStore.getAll() } } }
     );
 
-    // 1. Verificación de Identidad
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Acceso denegado. Debes iniciar sesión.");
 
-    // 2. Extraer datos
-    const amount = formData.get("amount") as string;
+    // ====================================================================
+    // 🛡️ FIREWALL ANTI-BOTS: LÍMITE DE 5 RECARGAS POR 24 HORAS
+    // ====================================================================
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    
+    const { count, error: countError } = await supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true }) // head: true hace que no gaste megas descargando datos
+      .eq('user_id', user.id)
+      .gte('created_at', twentyFourHoursAgo);
+
+    if (countError) {
+      throw new Error("Fallo en el sistema de seguridad. Operación abortada.");
+    }
+    
+    if (count !== null && count >= 5) {
+      throw new Error("🛡️ SISTEMA DE DEFENSA: Has alcanzado el límite máximo de 5 solicitudes en 24 horas. Por seguridad, intenta mañana.");
+    }
+    // ====================================================================
+
+    // Extracción de datos del formulario
+    const totalRobux = parseInt(formData.get("totalRobux") as string);
+    const totalPrice = parseFloat(formData.get("totalPrice") as string);
     const username = formData.get("username") as string;
     const file = formData.get("file");
+    
+    const cartItemsRaw = formData.get("cartItems") as string;
+    const cartItems = cartItemsRaw ? JSON.parse(cartItemsRaw) : [];
 
-    // 3. CAPA DE EXIGENCIA ESTRICTA (Ningún campo vacío)
-    if (!amount || !username || username.trim() === "") {
-      throw new Error("El ID de Roblox es obligatorio. Operación abortada.");
+    // Validaciones estrictas de datos corruptos
+    if (!totalRobux || !totalPrice || !username || username.trim() === "") {
+      throw new Error("Datos corruptos. Operación abortada.");
     }
+    if (!file) throw new Error("El comprobante de pago es obligatorio.");
+    if (!(file instanceof File)) throw new Error("Intento de brecha detectado.");
+    if (file.size > 5 * 1024 * 1024) throw new Error("Archivo demasiado pesado. Máximo 5MB.");
 
-    if (!file) {
-      throw new Error("El comprobante de pago es obligatorio.");
-    }
-
-    // 4. FIREWALL ANTI-HACKS / ANTI-VIRUS
-    // Nos aseguramos de que lo que enviaron es realmente un objeto de tipo Archivo
-    if (!(file instanceof File)) {
-      throw new Error("Intento de brecha detectado: Formato de datos corrupto.");
-    }
-
-    // Filtro de Tamaño Máximo (5MB) en el servidor
-    if (file.size > 5 * 1024 * 1024) {
-      throw new Error("Archivo demasiado pesado. Máximo 5MB.");
-    }
-
-    // Filtro de Tipo de Archivo (Solo Imágenes)
-    // Esto bloquea scripts maliciosos, ejecutables o documentos infectados
-    const validImageTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'image/gif'];
+    const validImageTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
     if (!validImageTypes.includes(file.type)) {
-      throw new Error("FIREWALL ACTIVADO: Solo se permiten formatos de imagen reales. Archivo bloqueado.");
+      throw new Error("FIREWALL ACTIVADO: Solo se permiten imágenes reales.");
     }
 
-    // 5. Validación Anti-Fraude de Precios
-    const price = ROBUX_PRICES[amount];
-    if (!price) throw new Error("Paquete de Robux inválido o alterado.");
-
-    // 6. Subida Segura a Supabase
+    // Subida del archivo al Storage
     const fileExt = file.name.split('.').pop();
     const fileName = `${user.id}-${Date.now()}.${fileExt}`; 
     
@@ -72,29 +66,27 @@ export async function submitOrder(formData: FormData) {
       .from('payment-proofs')
       .upload(fileName, file);
 
-    if (uploadError) {
-      console.error("Error en Storage:", uploadError);
-      throw new Error("Fallo en la matriz al subir el comprobante.");
-    }
+    if (uploadError) throw new Error("Fallo en la matriz al subir el comprobante.");
 
     const { data: { publicUrl } } = supabase.storage
       .from('payment-proofs')
       .getPublicUrl(fileName);
 
-    // 7. Guardar la Orden
+    // Guardado final en la Base de Datos
     const { error: dbError } = await supabase
       .from('orders')
       .insert({
         user_id: user.id,
         roblox_username: username,
-        amount_robux: parseInt(amount),
-        price_usd: price,
+        amount_robux: totalRobux,
+        price_usd: totalPrice,
         proof_url: publicUrl,
-        status: 'PENDING'
+        status: 'PENDING',
+        cart_items: cartItems
       });
 
     if (dbError) {
-      console.error("Error en BD:", dbError);
+      console.error(dbError);
       throw new Error("No pudimos registrar la orden en la base de datos.");
     }
 
@@ -102,6 +94,7 @@ export async function submitOrder(formData: FormData) {
     return { success: true };
 
   } catch (error: any) {
+    // Esto enviará el mensaje de error de nuestro Firewall al Checkout
     return { success: false, error: error.message || "Error interno del sistema" };
   }
 }

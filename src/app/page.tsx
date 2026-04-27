@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Zap, Tv, Trophy, Flame } from "lucide-react";
+import { useCartStore } from "@/store/cartStore"; // <-- IMPORTAMOS EL CEREBRO DEL CARRITO
 
 const ROBUX_PACKAGES = [
   { amount: "40", price: "0.75", popular: false },
@@ -16,6 +17,9 @@ const ROBUX_PACKAGES = [
 ];
 
 export default function Home() {
+  // Instanciamos la función para añadir al carrito
+  const addItem = useCartStore((state) => state.addItem);
+
   return (
     <main className="min-h-screen flex flex-col items-center">
       
@@ -28,7 +32,6 @@ export default function Home() {
           <span className="px-4 py-1.5 rounded-full border border-neon-cyan/50 text-neon-cyan text-xs font-bold uppercase tracking-widest bg-neon-cyan/10 mb-6 inline-block">
             Nivel Máximo Desbloqueado
           </span>
-          {/* Texto ajustado para que no se pierda en modo claro */}
           <h1 className="text-5xl md:text-7xl font-display font-black text-slate-900 dark:text-transparent dark:bg-clip-text dark:bg-gradient-to-r dark:from-neon-cyan dark:via-white dark:to-neon-pink mb-6 uppercase tracking-tight">
             Potencia Tu <br/> Arsenal Digital
           </h1>
@@ -49,11 +52,10 @@ export default function Home() {
 
       {/* SECCIÓN 1: ROBUX */}
      <section id="robux" className="w-full max-w-7xl mx-auto px-6 py-20 relative">
-          <div className="text-center mb-16 px-4"> {/* Añadimos padding extra aquí */}
-            <h2 className="text-3xl md:text-4xl font-display font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center justify-center gap-3 flex-wrap"> {/* flex-wrap para móviles muy pequeños */}
+          <div className="text-center mb-16 px-4">
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center justify-center gap-3 flex-wrap">
               <Zap className="w-8 h-8 text-yellow-500" fill="currentColor" />
               Depósito de 
-              {/* Lógica responsiva para el degradado */}
               <span className="text-yellow-500 md:text-transparent md:bg-clip-text md:bg-gradient-to-r md:from-yellow-500 md:to-orange-500">
                 Robux
               </span>
@@ -79,9 +81,22 @@ export default function Home() {
                 </div>
                 <div className="text-slate-500 text-sm font-display tracking-widest mb-6">ROBUX</div>
                 <div className="text-xl md:text-2xl font-light text-neon-cyan mb-6">${pkg.price}</div>
-                <Link href={`/order/${pkg.amount}`} className={`block w-full py-3 rounded-lg font-display font-bold uppercase tracking-wider transition-colors ${pkg.popular ? 'bg-neon-pink text-white hover:bg-rose-600 dark:hover:bg-white dark:hover:text-neon-pink' : 'bg-slate-100 dark:bg-dark-800 text-slate-900 dark:text-white hover:bg-neon-cyan hover:text-dark-900'}`}>
-                  Comprar
-                </Link>
+                
+                {/* BOTÓN ACTUALIZADO PARA CARRITO */}
+                <button 
+                  onClick={() => {
+                    // Genera un ID único para cada elemento y lo agrega al Zustand
+                    addItem({ 
+                      id: crypto.randomUUID(), 
+                      robux: parseInt(pkg.amount), 
+                      price: parseFloat(pkg.price) 
+                    });
+                  }}
+                  className={`block w-full py-3 rounded-lg font-display font-bold uppercase tracking-wider transition-colors ${pkg.popular ? 'bg-neon-pink text-white hover:bg-rose-600 dark:hover:bg-white dark:hover:text-neon-pink' : 'bg-slate-100 dark:bg-dark-800 text-slate-900 dark:text-white hover:bg-neon-cyan hover:text-dark-900'}`}
+                >
+                  Añadir
+                </button>
+
               </div>
             </motion.div>
           ))}
