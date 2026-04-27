@@ -32,10 +32,6 @@ export function Footer() {
               <Smartphone className="w-5 h-5 text-neon-green shrink-0" />
               <span>+593983755469 (Solo WhatsApp)</span>
             </li>
-            <li className="flex items-center gap-3">
-              <Mail className="w-5 h-5 text-neon-cyan shrink-0" />
-              <span>soporte@nexustopup.com</span>
-            </li>
           </ul>
         </div>
       </div>
