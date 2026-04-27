@@ -1,14 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Upload, CreditCard, Loader2, QrCode, ShoppingCart, User, X, Landmark } from "lucide-react";
+import { useState, useTransition, useEffect } from "react";
+import { Upload, CreditCard, Loader2, QrCode, ShoppingCart, User, Trash2, Landmark, X, LogIn } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { submitOrder } from "@/actions/order";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { createClient } from "@/lib/supabase/client"; // Importamos el cliente de Supabase
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, getTotalPrice, getTotalRobux, clearCart } = useCartStore();
+  const supabase = createClient();
+  
+  const { items, getTotalPrice, getTotalRobux, removeItem, clearCart } = useCartStore();
   const totalRobux = getTotalRobux();
   const totalPrice = getTotalPrice();
 
@@ -17,9 +21,55 @@ export default function CheckoutPage() {
   const [file, setFile] = useState<File | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [isPending, startTransition] = useTransition();
-  
-  // Estado para controlar el Modal del QR
   const [showQR, setShowQR] = useState(false);
+
+  // ==========================================
+  // 🛡️ ESTADO DE AUTENTICACIÓN
+  // ==========================================
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsAuthenticated(!!session);
+    };
+    checkAuth();
+  }, [supabase.auth]);
+
+  // PANTALLA DE CARGA MIENTRAS VERIFICA
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-950">
+        <Loader2 className="w-8 h-8 text-neon-cyan animate-spin" />
+        <p className="text-slate-500 font-display uppercase tracking-widest text-sm">Verificando credenciales...</p>
+      </div>
+    );
+  }
+
+  // PANTALLA DE BLOQUEO SI NO ESTÁ LOGUEADO
+  if (isAuthenticated === false) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-slate-50 dark:bg-slate-950 p-4 text-center">
+        <div className="w-24 h-24 bg-slate-200 dark:bg-dark-800 rounded-full flex items-center justify-center mb-2 shadow-inner">
+          <User className="w-12 h-12 text-slate-400" />
+        </div>
+        <h1 className="text-3xl font-display font-black text-slate-900 dark:text-white uppercase tracking-wider">
+          Acceso <span className="text-neon-pink">Denegado</span>
+        </h1>
+        <p className="text-slate-500 max-w-md">
+          Para proteger tus transacciones y asegurar la inyección de Robux, debes identificarte en la base de datos de Nexus.
+        </p>
+        <button 
+          onClick={() => router.push("/login?next=/checkout")}
+          className="mt-6 px-8 py-4 bg-neon-cyan text-dark-900 rounded-xl font-display font-black uppercase tracking-widest flex items-center gap-3 hover:shadow-[0_0_30px_rgba(0,240,255,0.4)] hover:scale-105 transition-all"
+        >
+          <LogIn className="w-5 h-5" />
+          Iniciar Sesión para Pagar
+        </button>
+      </div>
+    );
+  }
+  // ==========================================
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,8 +101,10 @@ export default function CheckoutPage() {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-slate-500 font-display">
-        No hay elementos en el carrito.
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-950">
+        <ShoppingCart className="w-12 h-12 text-slate-300" />
+        <p className="text-slate-500 font-display uppercase tracking-widest">El carrito está vacío</p>
+        <button onClick={() => router.push("/#robux")} className="text-neon-cyan font-bold hover:underline">Volver al catálogo</button>
       </div>
     );
   }
@@ -96,7 +148,6 @@ export default function CheckoutPage() {
             {paymentMethod === "transfer" && (
               <div className="space-y-6 animate-in fade-in duration-300">
                 
-                {/* NUEVO BOTÓN PARA ABRIR EL MODAL DEL QR */}
                 <button 
                   type="button" 
                   onClick={() => setShowQR(true)}
@@ -128,12 +179,29 @@ export default function CheckoutPage() {
             <ShoppingCart className="w-5 h-5 text-neon-cyan" /> Resumen de Carga
           </h2>
           <div className="space-y-4 mb-6">
-            {items.map((item, idx) => (
-              <div key={idx} className="flex justify-between items-center">
-                <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{item.robux} R$</span>
-                <span className="text-sm font-mono text-slate-500">${item.price.toFixed(2)}</span>
-              </div>
-            ))}
+            <AnimatePresence>
+              {items.map((item) => (
+                <motion.div 
+                  layout
+                  key={item.id} 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="flex justify-between items-center group"
+                >
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => removeItem(item.id)} 
+                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-neon-pink transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{item.robux} R$</span>
+                  </div>
+                  <span className="text-sm font-mono text-slate-500">${item.price.toFixed(2)}</span>
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
           <div className="border-t border-slate-100 dark:border-slate-800 pt-4 flex justify-between items-center">
             <span className="text-xs font-display uppercase tracking-widest text-slate-500">Total a Pagar</span>
@@ -144,9 +212,7 @@ export default function CheckoutPage() {
 
       </div>
 
-      {/* ========================================= */}
-      {/* MODAL FLOTANTE DEL QR Y DATOS BANCARIOS */}
-      {/* ========================================= */}
+      {/* MODAL FLOTANTE DEL QR */}
       {showQR && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-dark-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col">
@@ -161,46 +227,28 @@ export default function CheckoutPage() {
             </div>
             
             <div className="p-6 flex flex-col items-center text-center space-y-6">
-              
-              {/* CONTENEDOR DEL CÓDIGO QR */}
               <div className="w-48 h-48 bg-white p-2 rounded-2xl border-4 border-neon-cyan shadow-[0_0_30px_rgba(0,240,255,0.2)] relative flex items-center justify-center overflow-hidden">
-                 
-                 {/* 💡 INSTRUCCIÓN: Cuando tengas tu imagen de DeUna o Banco,
-                     guárdala en la carpeta 'public' de tu proyecto (ej: public/mi-qr.png)
-                     y descomenta la línea de abajo borrando el texto gris: */}
-                 
-                 { <img src="/mi-qr.png" alt="Código QR De Una" className="w-full h-full object-contain" />}
-
+                 <span className="text-slate-400 text-xs font-mono px-2">Coloca tu <br/>imagen QR aquí</span>
+                 {/* <img src="/mi-qr.png" alt="Código QR De Una" className="w-full h-full object-contain" /> */}
               </div>
               
-              {/* DATOS EN TEXTO */}
               <div className="w-full space-y-3 text-sm font-mono bg-slate-50 dark:bg-dark-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 text-left">
                 <p className="text-neon-cyan font-bold uppercase border-b border-slate-200 dark:border-slate-700 pb-2 mb-2 tracking-widest">
-                 Kevin Javier Montatixe
+                  C. Montatixe
                 </p>
-                <p className="text-neon-cyan font-bold uppercase border-b border-slate-200 dark:border-slate-700 pb-2 mb-2 tracking-widest">
-                                 CI: 1726303090
-                </p>
-
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 text-xs">Pichincha (Ahorros):</span>
-                  <span className="text-slate-900 dark:text-white font-bold select-all">2205330629</span>
+                  <span className="text-slate-900 dark:text-white font-bold select-all">2200XXXXX</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 text-xs">De Una / Celular:</span>
-                  <span className="text-slate-900 dark:text-white font-bold select-all">0983755469</span>
+                  <span className="text-slate-900 dark:text-white font-bold select-all">099XXXXXXX</span>
                 </div>
               </div>
 
-              {/* BOTÓN CERRAR MODAL */}
-              <button 
-                type="button" 
-                onClick={() => setShowQR(false)} 
-                className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-display font-black uppercase tracking-widest rounded-xl hover:scale-[1.02] active:scale-95 transition-all"
-              >
+              <button type="button" onClick={() => setShowQR(false)} className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-display font-black uppercase tracking-widest rounded-xl hover:scale-[1.02] active:scale-95 transition-all">
                 Cerrar y Subir Comprobante
               </button>
-
             </div>
           </div>
         </div>
