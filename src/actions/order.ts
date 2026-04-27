@@ -5,14 +5,14 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 
 const ROBUX_PRICES: Record<string, number> = {
-  "40": 0.49,
-  "80": 0.99,
-  "400": 4.99,
-  "800": 9.99,
-  "1200": 14.99,
-  "1700": 19.99,
-  "3150": 34.99,
-  "4500": 49.99,
+  "40": 0.75,
+  "80": 1.35,
+  "400": 6.00,
+  "800": 12.00,
+  "1200": 17.50,
+  "1700": 24.00,
+  "3150": 41.00,
+  "4500": 60.00,
 };
 
 export async function submitOrder(formData: FormData) {

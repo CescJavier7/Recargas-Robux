@@ -5,14 +5,14 @@ import Link from "next/link";
 import { Zap, Tv, Trophy, Flame } from "lucide-react";
 
 const ROBUX_PACKAGES = [
-  { amount: "40", price: "0.49", popular: false },
-  { amount: "80", price: "0.99", popular: true },
-  { amount: "400", price: "4.99", popular: false },
-  { amount: "800", price: "9.99", popular: true }, 
-  { amount: "1200", price: "14.99", popular: false },
-  { amount: "1700", price: "19.99", popular: false },
-  { amount: "3150", price: "34.99", popular: false },
-  { amount: "4500", price: "49.99", popular: false },
+  { amount: "40", price: "0.75", popular: false },
+  { amount: "80", price: "1.35", popular: true },
+  { amount: "400", price: "6.00", popular: false },
+  { amount: "800", price: "12.00", popular: true },
+  { amount: "1200", price: "17.50", popular: false },
+  { amount: "1700", price: "24.00", popular: false },
+  { amount: "3150", price: "41.00", popular: false },
+  { amount: "4500", price: "60.00", popular: false },
 ];
 
 export default function Home() {
