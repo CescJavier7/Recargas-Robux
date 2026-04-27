@@ -128,7 +128,7 @@ export default async function DashboardPage({
       {order.status === 'PENDING' && (
         <div className="mt-auto pt-2 relative z-10">
           <a 
-            href={`https://wa.me/593999999999?text=Hola!%20Orden%20${order.id.split('-')[0]}%20para%20${order.roblox_username}.`}
+            href={`https://wa.me/593983755469?text=¡Hola! Tengo una recarga que procesar%20Orden:%20${order.id.split('-')[0]}%20para%20${order.roblox_username}.`}
             target="_blank"
             rel="noreferrer"
             className="w-full py-3 bg-[#25D366]/10 dark:bg-transparent border-2 border-[#25D366] text-[#128C7E] dark:text-[#25D366] rounded-xl text-xs font-display font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-[#25D366] hover:text-white dark:hover:text-dark-900 transition-all duration-300 shadow-sm"

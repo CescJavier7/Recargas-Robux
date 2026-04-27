@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "@/components/ThemeProvider";
 import { motion, AnimatePresence } from "framer-motion";
 
-// RUTAS ABSOLUTAS: El '/' al principio es OBLIGATORIO para evitar el error de #servicios
 const NAV_LINKS = [
   { name: 'INICIO', href: '/', icon: Home, desc: 'Volver a la base de operaciones' },
   { name: 'CATÁLOGO', href: '/#robux', icon: Target, desc: 'Explorar servicios arcade y streaming' },
@@ -21,7 +20,7 @@ export function Navbar() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [imgError, setImgError] = useState(false); // Estado para manejar error de imagen
+  const [imgError, setImgError] = useState(false);
   
   const menuRef = useRef<HTMLDivElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -47,7 +46,7 @@ export function Navbar() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
-      setImgError(false); // Resetear error si cambia el usuario
+      setImgError(false);
       if (session?.user) checkAdminRole(session.user.id);
     });
 
@@ -70,10 +69,11 @@ export function Navbar() {
     router.push("/");
   };
 
+  // LOGO: Ajustado para que el texto sea más pequeño en móvil (text-[15px]) y normal en PC (sm:text-xl)
   const Logo = () => (
-    <Link href="/" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-2 group">
-      <Gamepad2 className="w-6 h-6 text-neon-cyan group-hover:text-neon-pink transition-colors" />
-      <span className="font-display font-bold text-lg sm:text-xl tracking-wider text-slate-900 dark:text-white">
+    <Link href="/" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-1.5 sm:gap-2 group">
+      <Gamepad2 className="w-5 h-5 sm:w-6 sm:h-6 text-neon-cyan group-hover:text-neon-pink transition-colors" />
+      <span className="font-display font-bold text-[15px] sm:text-xl tracking-wider text-slate-900 dark:text-white">
         NEXUS<span className="text-neon-cyan">TOPUP</span>
       </span>
     </Link>
@@ -82,14 +82,16 @@ export function Navbar() {
   return (
     <>
       <nav className="w-full border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-dark-900/80 backdrop-blur-md sticky top-0 z-50 transition-colors duration-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        {/* Contenedor principal: Menos padding lateral en móvil (px-3) */}
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between">
           
-          <div className="flex items-center gap-2 sm:gap-4">
+          {/* Izquierda: Hamburguesa + Logo */}
+          <div className="flex items-center gap-1 sm:gap-4">
             <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-1.5 -ml-1 text-slate-600 dark:text-slate-400 hover:text-neon-cyan transition-colors">
-              <Menu className="w-6 h-6" />
+              <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
             <Logo />
-            <div className="hidden md:flex items-center gap-6 text-sm font-display tracking-widest text-slate-600 dark:text-slate-300">
+            <div className="hidden md:flex items-center gap-6 text-sm font-display tracking-widest text-slate-600 dark:text-slate-300 ml-4">
               {NAV_LINKS.map(link => (
                 <Link key={link.name} href={link.href} className="hover:text-neon-cyan transition-colors">
                   {link.name}
@@ -98,8 +100,11 @@ export function Navbar() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 sm:gap-4">
-            <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="p-2 rounded-full bg-slate-100 dark:bg-dark-800 text-slate-600 dark:text-slate-400 hover:text-neon-cyan transition-colors">
+          {/* Derecha: Tema + Login/Usuario (Gap reducido en móvil) */}
+          <div className="flex items-center gap-2 sm:gap-4">
+            
+            {/* Botón Tema: Ligeramente más pequeño en móvil */}
+            <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="p-1.5 sm:p-2 rounded-full bg-slate-100 dark:bg-dark-800 text-slate-600 dark:text-slate-400 hover:text-neon-cyan transition-colors">
               <Sun className="w-4 h-4 hidden dark:block" />
               <Moon className="w-4 h-4 block dark:hidden" />
             </button>
@@ -112,7 +117,7 @@ export function Navbar() {
                         <img 
                             src={user.user_metadata?.avatar_url || user.user_metadata?.picture} 
                             alt="Avatar" 
-                            referrerPolicy="no-referrer" // 🚨 ESTO REPARA LAS FOTOS DE GOOGLE
+                            referrerPolicy="no-referrer"
                             onError={() => setImgError(true)}
                             className="w-full h-full object-cover"
                         />
@@ -128,9 +133,11 @@ export function Navbar() {
                   <ChevronDown className={`w-4 h-4 text-slate-400 hidden sm:block transition-transform ${isMenuOpen ? "rotate-180" : ""}`} />
                 </button>
 
+                {/* Dropdown de perfil se mantiene igual... */}
                 <AnimatePresence>
                 {isMenuOpen && (
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-dark-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg z-50 overflow-hidden">
+                    {/* ... (Contenido del Dropdown sin cambios) ... */}
                     <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
                       <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{user.user_metadata?.full_name || 'Agente Nexus'}</p>
                       <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
@@ -155,15 +162,17 @@ export function Navbar() {
                 </AnimatePresence>
               </div>
             ) : (
-              <Link href="/login" className="flex items-center gap-2 px-4 py-2 text-sm font-display font-bold uppercase tracking-widest text-neon-cyan border border-neon-cyan/50 rounded-lg hover:bg-neon-cyan hover:text-dark-900 transition-all">
-                <User className="w-4 h-4" /> Login
+              // BOTÓN LOGIN: Paddings y textos más pequeños en móvil (px-2.5 py-1.5 text-[10px])
+              <Link href="/login" className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 sm:px-4 sm:py-2 text-[10px] sm:text-sm font-display font-bold uppercase tracking-widest text-neon-cyan border border-neon-cyan/50 rounded-lg hover:bg-neon-cyan hover:text-dark-900 transition-all">
+                <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 
+                <span>Login</span>
               </Link>
             )}
           </div>
         </div>
       </nav>
 
-      {/* SIDEBAR MÓVIL (Rutas corregidas también) */}
+      {/* SIDEBAR MÓVIL (Sin cambios visuales profundos, ya estaba bien) */}
       <AnimatePresence>
         {isSidebarOpen && (
           <>
