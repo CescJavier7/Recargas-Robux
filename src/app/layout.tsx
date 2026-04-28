@@ -7,6 +7,7 @@ import FloatingCart from "@/components/FloatingCart"; // Importación por defaul
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import SafeBrowserWarning from "@/components/SafeBrowserWarning";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const orbitron = Orbitron({ subsets: ["latin"], variable: "--font-orbitron" });
@@ -41,7 +42,7 @@ export default function RootLayout({
 
           {/* EL NUEVO CARRITO FLOTANTE */}
           <FloatingCart />
-
+        <SafeBrowserWarning />
         </ThemeProvider>
 
       </body>
