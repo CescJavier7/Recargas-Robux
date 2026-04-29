@@ -36,7 +36,6 @@ export default function CheckoutPage() {
     checkAuth();
   }, [supabase.auth]);
 
-  // PANTALLA DE CARGA
   if (isAuthenticated === null) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-950">
@@ -46,7 +45,6 @@ export default function CheckoutPage() {
     );
   }
 
-  // PANTALLA DE BLOQUEO
   if (isAuthenticated === false) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-slate-50 dark:bg-slate-950 p-4 text-center">
@@ -80,15 +78,15 @@ export default function CheckoutPage() {
     if (paymentMethod === "transfer") {
       if (!file || !username) return setErrorMsg("Falta tu usuario o comprobante.");
       
-      // GATEKEEPER FRONTEND: Validar tamaño y formato
       const fileSizeInMB = file.size / (1024 * 1024);
       if (fileSizeInMB > 4.5) {
         return setErrorMsg(`La foto es muy pesada (${fileSizeInMB.toFixed(1)}MB). Por favor, sube una captura de pantalla normal desde tu galería.`);
       }
 
+      // Validar que no hayan subido un PDF o algo raro gracias a nuestro hack
       const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
       if (!validTypes.includes(file.type)) {
-         return setErrorMsg("Formato no soportado. Por favor, sube una captura de pantalla (JPG/PNG).");
+         return setErrorMsg("Formato no soportado. Por favor, asegúrate de subir una IMAGEN (JPG/PNG), no un documento.");
       }
       
       startTransition(async () => {
@@ -184,24 +182,24 @@ export default function CheckoutPage() {
                     )}
                   </span>
                   
-                  {/* ALERTA VISUAL PARA NO USAR LA CÁMARA */}
                   {!file && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 dark:text-yellow-400 rounded-md mt-1">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-neon-cyan/5 border border-neon-cyan/20 text-neon-cyan rounded-md mt-1">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                       <span className="text-[10px] font-bold tracking-tight text-center leading-none">
-                        ⚠️ Sube el archivo desde tu galería.<br className="sm:hidden" /> NO uses la cámara en vivo.
+                        Solo archivos de galería / capturas.
                       </span>
                     </div>
                   )}
 
+                  {/* 🔥 EL HACK MAESTRO: application/pdf deshabilita la cámara en Android */}
                   <input 
                     type="file" 
                     className="hidden" 
-                    accept="image/png, image/jpeg, image/jpg, image/webp" 
+                    accept="image/png, image/jpeg, image/jpg, image/webp, application/pdf" 
                     onChange={(e) => {
                       if (e.target.files && e.target.files.length > 0) {
                         setFile(e.target.files[0]);
-                        setErrorMsg(""); // Limpia errores si selecciona un archivo nuevo
+                        setErrorMsg(""); 
                       }
                     }} 
                     required 
