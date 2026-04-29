@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { ShieldAlert, CheckCircle, XCircle, ExternalLink, User, Hash, DollarSign, Package } from "lucide-react";
+import { ShieldAlert, CheckCircle, XCircle, ExternalLink, User, DollarSign, Package, Trash2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export default async function AdminPanel() {
     { cookies: { getAll() { return cookieStore.getAll(); } } }
   );
 
-// ==========================================
+  // ==========================================
   // 🛡️ GUARDIA DE SEGURIDAD DEL ADMIN (FUERZA BRUTA)
   // ==========================================
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -25,7 +25,7 @@ export default async function AdminPanel() {
 
   const googleEmail = user.email?.toLowerCase().trim();
   
-  // 🔥 FORZAMOS EL CORREO EXACTO IGNORANDO LAS VARIABLES DE ENTORNO
+  // 🔥 QUEMAMOS EL CORREO PARA EVITAR PROBLEMAS DE VERCEL
   const adminEmail = "javiercaiza220158@gmail.com";
 
   if (googleEmail !== adminEmail) {
@@ -38,6 +38,7 @@ export default async function AdminPanel() {
     .select("*")
     .order("created_at", { ascending: false });
 
+  // 🛠️ ACCIÓN 1: ACTUALIZAR ESTADO (Aprobar/Rechazar)
   async function updateOrderStatus(formData: FormData) {
     "use server";
     const orderId = formData.get("orderId") as string;
@@ -51,8 +52,32 @@ export default async function AdminPanel() {
     );
 
     const { data: { user: adminUser } } = await supabaseServer.auth.getUser();
-    if (adminUser?.email === process.env.ADMIN_EMAIL) {
+    
+    // 🔥 TAMBIÉN USAMOS EL CORREO QUEMADO AQUÍ ADENTRO
+    if (adminUser?.email?.toLowerCase().trim() === adminEmail) {
       await supabaseServer.from("orders").update({ status: newStatus }).eq("id", orderId);
+      revalidatePath("/admin"); 
+      revalidatePath("/dashboard");
+    }
+  }
+
+  // 🛠️ ACCIÓN 2: ELIMINAR ORDEN POR COMPLETO DE LA BASE DE DATOS
+  async function deleteOrderAction(formData: FormData) {
+    "use server";
+    const orderId = formData.get("orderId") as string;
+
+    const cookieStoreServer = await cookies();
+    const supabaseServer = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll() { return cookieStoreServer.getAll(); } } }
+    );
+
+    const { data: { user: adminUser } } = await supabaseServer.auth.getUser();
+    
+    // 🔥 VALIDACIÓN DE SEGURIDAD ANTES DE BORRAR
+    if (adminUser?.email?.toLowerCase().trim() === adminEmail) {
+      await supabaseServer.from("orders").delete().eq("id", orderId);
       revalidatePath("/admin"); 
       revalidatePath("/dashboard");
     }
@@ -101,7 +126,6 @@ export default async function AdminPanel() {
               {orders?.map((order) => (
                 <tr key={order.id} className="group hover:bg-slate-50/50 dark:hover:bg-dark-800/30 transition-colors">
                   
-                  {/* 👇 NUEVA CELDA DE USUARIO OPTIMIZADA 👇 */}
                   <td className="px-6 py-5">
                     <div className="flex flex-col">
                       <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 truncate max-w-[200px]">
@@ -111,7 +135,6 @@ export default async function AdminPanel() {
                         {order.user_email || "Correo no registrado"}
                       </span>
                       
-                      {/* Recuadro resaltado para el usuario de Roblox */}
                       <div className="flex items-center gap-1.5 px-2 py-1 bg-neon-cyan/10 border border-neon-cyan/20 rounded-md w-fit">
                         <User className="w-3 h-3 text-neon-cyan" />
                         <span className="text-[10px] font-bold text-neon-cyan">Roblox: {order.roblox_username}</span>
@@ -162,24 +185,40 @@ export default async function AdminPanel() {
                       order.status === 'COMPLETED' ? 'bg-neon-green/5 text-emerald-600 border-emerald-200 dark:text-neon-green dark:border-neon-green/20' :
                       'bg-neon-pink/5 text-rose-600 border-rose-200 dark:text-neon-pink dark:border-neon-pink/20'
                     }`}>
-                      {order.status === 'PENDING' ? 'En Revisión' : order.status === 'COMPLETED' ? 'Enviado' : 'Cancelado'}
+                      {order.status === 'PENDING' ? 'En Revisión' : order.status === 'COMPLETED' ? 'Enviado' : 'Rechazado'}
                     </span>
                   </td>
 
                   <td className="sticky right-0 bg-white dark:bg-dark-900 group-hover:bg-slate-50 dark:group-hover:bg-dark-800 px-6 py-5 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] dark:shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.3)] z-10">
                     <div className="flex justify-center gap-2">
+                      {/* BOTÓN: APROBAR */}
                       <form action={updateOrderStatus}>
                         <input type="hidden" name="orderId" value={order.id} />
                         <input type="hidden" name="status" value="COMPLETED" />
-                        <button title="Aprobar" className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-neon-green rounded-xl hover:bg-emerald-500 hover:text-white transition-all active:scale-90">
+                        <button title="Marcar como Enviado" className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-neon-green rounded-xl hover:bg-emerald-500 hover:text-white transition-all active:scale-90">
                           <CheckCircle className="w-4 h-4" />
                         </button>
                       </form>
+                      
+                      {/* BOTÓN: RECHAZAR */}
                       <form action={updateOrderStatus}>
                         <input type="hidden" name="orderId" value={order.id} />
                         <input type="hidden" name="status" value="CANCELLED" />
-                        <button title="Rechazar" className="p-2.5 bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-neon-pink rounded-xl hover:bg-rose-500 hover:text-white transition-all active:scale-90">
+                        <button title="Rechazar Pedido" className="p-2.5 bg-yellow-500/10 border border-yellow-500/30 text-yellow-600 dark:text-yellow-400 rounded-xl hover:bg-yellow-500 hover:text-white transition-all active:scale-90">
                           <XCircle className="w-4 h-4" />
+                        </button>
+                      </form>
+
+                      {/* 🔥 NUEVO BOTÓN: ELIMINAR DE LA BASE DE DATOS 🔥 */}
+                      <form action={deleteOrderAction} onSubmit={(e) => {
+                        // Agregamos una confirmación en el navegador para evitar clics por accidente
+                        if(!window.confirm('¿Estás SEGURO de querer borrar este pedido? Desaparecerá de tu panel y del cliente para siempre.')) {
+                          e.preventDefault();
+                        }
+                      }}>
+                        <input type="hidden" name="orderId" value={order.id} />
+                        <button title="Eliminar Permanentemente" className="p-2.5 bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-neon-pink rounded-xl hover:bg-rose-500 hover:text-white transition-all active:scale-90">
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </form>
                     </div>
