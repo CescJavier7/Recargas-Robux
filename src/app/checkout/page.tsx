@@ -154,7 +154,6 @@ export default function CheckoutPage() {
                   Ver QR y Datos Bancarios
                 </button>
 
-                {/* ZONA DE CARGA CON VALIDACIÓN INSTANTÁNEA */}
                 <label className="flex flex-col items-center justify-center w-full h-auto min-h-[8rem] py-4 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-dark-800 transition-all group overflow-hidden">
                   <Upload className={`w-6 h-6 mb-2 transition-colors ${file ? 'text-neon-green' : 'text-slate-400 group-hover:text-neon-cyan'}`} />
                   
@@ -164,27 +163,31 @@ export default function CheckoutPage() {
                         {file.name}
                       </span>
                     ) : (
-                      "Toma una foto o sube captura"
+                      "Sube o toma una foto del comprobante"
                     )}
                   </span>
 
                   <input 
                     type="file" 
                     className="hidden" 
-                    accept="image/png, image/jpeg, image/jpg, image/webp" 
+                    accept="image/*" 
                     onChange={(e) => {
                       if (e.target.files && e.target.files.length > 0) {
                         const selectedFile = e.target.files[0];
                         const fileSizeInMB = selectedFile.size / (1024 * 1024);
 
-                        // 🔥 REVISIÓN INSTANTÁNEA 🔥
-                        if (fileSizeInMB > 4.5) {
-                          setErrorMsg(`⚠️ La imagen es muy pesada (${fileSizeInMB.toFixed(1)}MB). Por favor, intenta tomando la foto desde más lejos, recórtala, o sube una captura de pantalla.`);
-                          setFile(null); // Reseteamos si es muy grande
-                          e.target.value = ''; // Limpiamos el input
+                        // 🔥 REVISIÓN INSTANTÁNEA (Solo imágenes, Max 4.5MB) 🔥
+                        if (!selectedFile.type.startsWith('image/')) {
+                          setErrorMsg("⚠️ Formato inválido. Solo se permiten imágenes (JPG, PNG, etc).");
+                          setFile(null);
+                          e.target.value = '';
+                        } else if (fileSizeInMB > 4.5) {
+                          setErrorMsg(`⚠️ La imagen pesa ${fileSizeInMB.toFixed(1)}MB. El límite de seguridad es 4.5MB. Toma la foto desde más lejos o sube una captura.`);
+                          setFile(null);
+                          e.target.value = '';
                         } else {
                           setFile(selectedFile);
-                          setErrorMsg(""); // Borramos errores si todo está bien
+                          setErrorMsg(""); 
                         }
                       }
                     }} 
