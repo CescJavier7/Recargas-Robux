@@ -6,13 +6,18 @@ import { ShieldAlert, CheckCircle, XCircle, ExternalLink, User, DollarSign, Pack
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminPanel({
-  searchParams,
-}: {
-  searchParams: { view?: string };
-}) {
-  // 1. SIN AWAIT: Compatible con Next.js 14
-  const cookieStore = cookies();
+// 🚀 TIPO CORRECTO PARA NEXT.JS 15 / 16
+type PageProps = {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+};
+
+export default async function AdminPanel(props: PageProps) {
+  // 🚀 AWAIT OBLIGATORIO: En tu versión de Next.js esto es una promesa
+  const searchParams = await props.searchParams;
+  const viewId = searchParams?.view as string | undefined;
+
+  // 🚀 AWAIT OBLIGATORIO: Las cookies también son promesas ahora
+  const cookieStore = await cookies();
   
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,7 +53,7 @@ export default async function AdminPanel({
     const orderId = formData.get("orderId") as string;
     const newStatus = formData.get("status") as string;
 
-    const cookieStoreServer = cookies(); // SIN AWAIT
+    const cookieStoreServer = await cookies(); // AWAIT AQUÍ TAMBIÉN
     const supabaseServer = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -69,7 +74,7 @@ export default async function AdminPanel({
     "use server";
     const orderId = formData.get("orderId") as string;
 
-    const cookieStoreServer = cookies(); // SIN AWAIT
+    const cookieStoreServer = await cookies(); // AWAIT AQUÍ TAMBIÉN
     const supabaseServer = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -85,10 +90,10 @@ export default async function AdminPanel({
     }
   }
 
-  // Capturamos el modal seleccionado
-  const selectedOrder = searchParams.view ? orders?.find(o => String(o.id) === String(searchParams.view)) : null;
+  // Buscamos la orden usando la variable que ya esperamos con await
+  const selectedOrder = viewId ? orders?.find(o => String(o.id) === String(viewId)) : null;
 
-  // Extraemos los items de forma ultra-segura para evitar errores 500
+  // Extraemos los items de forma ultra-segura
   const cartItemsSafe = Array.isArray(selectedOrder?.cart_items) ? selectedOrder.cart_items : [];
 
   return (
@@ -131,7 +136,6 @@ export default async function AdminPanel({
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {orders?.map((order) => {
-                // Validación estricta para evitar crashes en órdenes viejas
                 const orderCartSafe = Array.isArray(order.cart_items) ? order.cart_items : [];
                 
                 return (
@@ -203,7 +207,6 @@ export default async function AdminPanel({
                   <td className="sticky right-0 bg-white dark:bg-dark-900 group-hover:bg-slate-50 dark:group-hover:bg-dark-800 px-6 py-5 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] dark:shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.3)] z-10">
                     <div className="flex justify-center gap-2">
                       
-                      {/* 🔥 BOTÓN DEL OJITO (CON NAVEGACIÓN DURA) 🔥 */}
                       <a href={`/admin?view=${order.id}`} title="Ver Detalles" className="p-2.5 bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan rounded-xl hover:bg-neon-cyan hover:text-dark-900 transition-all active:scale-90 flex items-center justify-center">
                         <Eye className="w-4 h-4" />
                       </a>
@@ -250,7 +253,6 @@ export default async function AdminPanel({
               <h3 className="font-display font-black text-white uppercase tracking-widest text-lg flex items-center gap-2">
                 <Package className="w-5 h-5 text-neon-cyan" /> Detalles del Pedido
               </h3>
-              {/* BOTÓN CERRAR CON NAVEGACIÓN DURA */}
               <a href="/admin" className="text-slate-500 hover:text-neon-pink bg-slate-800 p-1.5 rounded-full transition-all">
                 <X className="w-4 h-4" />
               </a>
@@ -268,7 +270,7 @@ export default async function AdminPanel({
                   ))}
                   {cartItemsSafe.length === 0 && (
                     <div className="text-center text-slate-500 text-xs italic py-2">
-                      Detalle de paquetes no disponible para esta orden antigua.
+                      Detalle de paquetes no disponible.
                     </div>
                   )}
                 </div>
