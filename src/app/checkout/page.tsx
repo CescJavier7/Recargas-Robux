@@ -68,26 +68,12 @@ export default function CheckoutPage() {
     );
   }
 
-  // ==========================================
-  // LÓGICA DE ENVÍO Y GATEKEEPER
-  // ==========================================
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) return setErrorMsg("Tu carrito está vacío.");
     
     if (paymentMethod === "transfer") {
       if (!file || !username) return setErrorMsg("Falta tu usuario o comprobante.");
-      
-      const fileSizeInMB = file.size / (1024 * 1024);
-      if (fileSizeInMB > 4.5) {
-        return setErrorMsg(`La foto es muy pesada (${fileSizeInMB.toFixed(1)}MB). Por favor, sube una captura de pantalla normal desde tu galería.`);
-      }
-
-      // Validar que no hayan subido un PDF o algo raro gracias a nuestro hack
-      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
-      if (!validTypes.includes(file.type)) {
-         return setErrorMsg("Formato no soportado. Por favor, asegúrate de subir una IMAGEN (JPG/PNG), no un documento.");
-      }
       
       startTransition(async () => {
         const formData = new FormData();
@@ -168,7 +154,7 @@ export default function CheckoutPage() {
                   Ver QR y Datos Bancarios
                 </button>
 
-                {/* ZONA DE CARGA MEJORADA */}
+                {/* ZONA DE CARGA CON VALIDACIÓN INSTANTÁNEA */}
                 <label className="flex flex-col items-center justify-center w-full h-auto min-h-[8rem] py-4 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-dark-800 transition-all group overflow-hidden">
                   <Upload className={`w-6 h-6 mb-2 transition-colors ${file ? 'text-neon-green' : 'text-slate-400 group-hover:text-neon-cyan'}`} />
                   
@@ -178,28 +164,28 @@ export default function CheckoutPage() {
                         {file.name}
                       </span>
                     ) : (
-                      "Sube la captura de tu comprobante"
+                      "Toma una foto o sube captura"
                     )}
                   </span>
-                  
-                  {!file && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-neon-cyan/5 border border-neon-cyan/20 text-neon-cyan rounded-md mt-1">
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                      <span className="text-[10px] font-bold tracking-tight text-center leading-none">
-                        Solo archivos de galería / capturas.
-                      </span>
-                    </div>
-                  )}
 
-                  {/* 🔥 EL HACK MAESTRO: application/pdf deshabilita la cámara en Android */}
                   <input 
                     type="file" 
                     className="hidden" 
-                    accept="image/png, image/jpeg, image/jpg, image/webp, application/pdf" 
+                    accept="image/png, image/jpeg, image/jpg, image/webp" 
                     onChange={(e) => {
                       if (e.target.files && e.target.files.length > 0) {
-                        setFile(e.target.files[0]);
-                        setErrorMsg(""); 
+                        const selectedFile = e.target.files[0];
+                        const fileSizeInMB = selectedFile.size / (1024 * 1024);
+
+                        // 🔥 REVISIÓN INSTANTÁNEA 🔥
+                        if (fileSizeInMB > 4.5) {
+                          setErrorMsg(`⚠️ La imagen es muy pesada (${fileSizeInMB.toFixed(1)}MB). Por favor, intenta tomando la foto desde más lejos, recórtala, o sube una captura de pantalla.`);
+                          setFile(null); // Reseteamos si es muy grande
+                          e.target.value = ''; // Limpiamos el input
+                        } else {
+                          setFile(selectedFile);
+                          setErrorMsg(""); // Borramos errores si todo está bien
+                        }
                       }
                     }} 
                     required 
