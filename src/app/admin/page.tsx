@@ -1,7 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ShieldAlert, CheckCircle, XCircle, ExternalLink, User, DollarSign, Package, Trash2, Eye, X } from "lucide-react";
 
@@ -20,24 +19,50 @@ export default async function AdminPanel({
     { cookies: { getAll() { return cookieStore.getAll(); } } }
   );
 
-  // ==========================================
-  // 🛡️ GUARDIA DE SEGURIDAD (.ENV RESTAURADO)
-  // ==========================================
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   
-  if (authError || !user) {
-    redirect("/login");
-  }
-
-  const googleEmail = user.email?.toLowerCase().trim();
+  const googleEmail = user?.email?.toLowerCase().trim();
   const adminEmail = process.env.ADMIN_EMAIL?.toLowerCase().trim();
 
-  // Si la variable de entorno no existe o no coincide, expulsamos
-  if (!adminEmail || googleEmail !== adminEmail) {
-    redirect("/"); 
+  // ==========================================
+  // 🚨 PANTALLA DE DEBUG (DETECTIVE DE VARIABLES) 🚨
+  // ==========================================
+  if (!user || googleEmail !== adminEmail) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-10 bg-slate-950 text-white font-mono text-center">
+        <ShieldAlert className="w-20 h-20 text-neon-pink mb-6 animate-pulse" />
+        <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-neon-pink">🚨 ACCESO DENEGADO (MODO DEBUG) 🚨</h1>
+        
+        <div className="bg-slate-900 p-6 rounded-2xl border-2 border-slate-800 text-left space-y-4 w-full max-w-lg shadow-[0_0_30px_rgba(255,0,60,0.2)]">
+          <p className="border-b border-slate-800 pb-2">
+            <strong className="text-slate-400">1. Tu correo (Google):</strong><br/>
+            <span className="text-neon-cyan text-lg">{googleEmail || "No detectado (Debes iniciar sesión)"}</span>
+          </p>
+          <p className="border-b border-slate-800 pb-2">
+            <strong className="text-slate-400">2. Correo Admin (.env):</strong><br/>
+            <span className="text-yellow-400 text-lg">{adminEmail || "VACÍO O UNDEFINED"}</span>
+          </p>
+          <p>
+            <strong className="text-slate-400">3. ¿Son exactamente iguales?:</strong><br/>
+            <span className={googleEmail === adminEmail ? "text-neon-green text-lg" : "text-neon-pink text-lg"}>
+              {googleEmail === adminEmail ? "SÍ" : "NO"}
+            </span>
+          </p>
+        </div>
+
+        <p className="mt-8 text-sm text-slate-400 max-w-lg leading-relaxed">
+          Si el Correo Admin dice <strong className="text-yellow-400">VACÍO O UNDEFINED</strong>, significa que Vercel no está inyectando la variable de entorno. Debes ir a Vercel {">"} Settings {">"} Environment Variables, asegurarte de que exista <strong>ADMIN_EMAIL</strong>, y muy importante, ir a Deployments y hacer un <strong>REDEPLOY</strong>.
+        </p>
+        
+        <Link href="/" className="mt-8 px-8 py-3 bg-slate-800 rounded-xl hover:bg-slate-700 transition-colors uppercase tracking-widest font-bold text-xs">
+          Volver al Inicio
+        </Link>
+      </div>
+    );
   }
   // ==========================================
 
+  // Si pasa la seguridad, mostramos el panel real
   const { data: orders } = await supabase
     .from("orders")
     .select("*")
@@ -86,7 +111,6 @@ export default async function AdminPanel({
     }
   }
 
-  // Buscamos la orden si el admin hizo clic en "Ver detalles"
   const selectedOrder = searchParams.view ? orders?.find(o => o.id === searchParams.view) : null;
 
   return (
@@ -183,8 +207,6 @@ export default async function AdminPanel({
 
                   <td className="sticky right-0 bg-white dark:bg-dark-900 group-hover:bg-slate-50 dark:group-hover:bg-dark-800 px-6 py-5 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] dark:shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.3)] z-10">
                     <div className="flex justify-center gap-2">
-                      
-                      {/* 🔥 BOTÓN DEL OJITO (VER DETALLES) 🔥 */}
                       <Link href={`/admin?view=${order.id}`} scroll={false} title="Ver Detalles" className="p-2.5 bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan rounded-xl hover:bg-neon-cyan hover:text-dark-900 transition-all active:scale-90 flex items-center justify-center">
                         <Eye className="w-4 h-4" />
                       </Link>
@@ -220,13 +242,9 @@ export default async function AdminPanel({
         </div>
       </div>
 
-      {/* ========================================================= */}
-      {/* 🚨 SERVER-SIDE MODAL DE DETALLES DE LA ORDEN 🚨 */}
-      {/* ========================================================= */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden">
-            
             <div className="flex justify-between items-center p-5 border-b border-slate-800">
               <h3 className="font-display font-black text-white uppercase tracking-widest text-lg flex items-center gap-2">
                 <Package className="w-5 h-5 text-neon-cyan" /> Detalles del Pedido
@@ -237,7 +255,6 @@ export default async function AdminPanel({
             </div>
 
             <div className="p-6 space-y-6">
-              {/* Desglose del Carrito */}
               <div>
                 <p className="text-xs text-slate-500 font-mono uppercase tracking-widest mb-3">Items Comprados</p>
                 <div className="space-y-2">
@@ -250,7 +267,6 @@ export default async function AdminPanel({
                 </div>
               </div>
 
-              {/* Información del Cliente */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
                   <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">Destino Roblox</p>
@@ -266,7 +282,6 @@ export default async function AdminPanel({
                 Cerrar Detalles
               </Link>
             </div>
-
           </div>
         </div>
       )}
