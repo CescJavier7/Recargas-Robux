@@ -14,8 +14,8 @@ export default async function AdminPanel() {
     { cookies: { getAll() { return cookieStore.getAll(); } } }
   );
 
-  // ==========================================
-  // 🛡️ GUARDIA DE SEGURIDAD DEL ADMIN
+// ==========================================
+  // 🛡️ GUARDIA DE SEGURIDAD DEL ADMIN (BLINDADO)
   // ==========================================
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   
@@ -23,7 +23,18 @@ export default async function AdminPanel() {
     redirect("/login");
   }
 
-  if (user.email !== process.env.ADMIN_EMAIL) {
+  // 1. Normalizamos los correos: todo a minúsculas y quitamos espacios en blanco
+  const googleEmail = user.email?.toLowerCase().trim();
+  const envEmail = process.env.ADMIN_EMAIL?.toLowerCase().trim();
+
+  // 🚨 EL CHIVATO (MIRA TU TERMINAL DE VS CODE) 🚨
+  console.log("==== DETECTIVE DE SEGURIDAD ====");
+  console.log("Correo de Google :", googleEmail);
+  console.log("Correo del .env  :", envEmail);
+  console.log("¿Son iguales?    :", googleEmail === envEmail);
+  console.log("================================");
+
+  if (googleEmail !== envEmail) {
     redirect("/"); 
   }
   // ==========================================
