@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { Upload, CreditCard, Loader2, QrCode, ShoppingCart, User, Trash2, Landmark, X, LogIn } from "lucide-react";
+import { Upload, CreditCard, Loader2, QrCode, ShoppingCart, User, Trash2, Landmark, X, LogIn, AlertTriangle } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { submitOrder } from "@/actions/order";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { createClient } from "@/lib/supabase/client"; // Importamos el cliente de Supabase
+import { createClient } from "@/lib/supabase/client";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -36,7 +36,7 @@ export default function CheckoutPage() {
     checkAuth();
   }, [supabase.auth]);
 
-  // PANTALLA DE CARGA MIENTRAS VERIFICA
+  // PANTALLA DE CARGA
   if (isAuthenticated === null) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-950">
@@ -46,7 +46,7 @@ export default function CheckoutPage() {
     );
   }
 
-  // PANTALLA DE BLOQUEO SI NO ESTÁ LOGUEADO
+  // PANTALLA DE BLOQUEO
   if (isAuthenticated === false) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-slate-50 dark:bg-slate-950 p-4 text-center">
@@ -69,14 +69,27 @@ export default function CheckoutPage() {
       </div>
     );
   }
-  // ==========================================
 
+  // ==========================================
+  // LÓGICA DE ENVÍO Y GATEKEEPER
+  // ==========================================
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) return setErrorMsg("Tu carrito está vacío.");
     
     if (paymentMethod === "transfer") {
       if (!file || !username) return setErrorMsg("Falta tu usuario o comprobante.");
+      
+      // GATEKEEPER FRONTEND: Validar tamaño y formato
+      const fileSizeInMB = file.size / (1024 * 1024);
+      if (fileSizeInMB > 4.5) {
+        return setErrorMsg(`La foto es muy pesada (${fileSizeInMB.toFixed(1)}MB). Por favor, sube una captura de pantalla normal desde tu galería.`);
+      }
+
+      const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+         return setErrorMsg("Formato no soportado. Por favor, sube una captura de pantalla (JPG/PNG).");
+      }
       
       startTransition(async () => {
         const formData = new FormData();
@@ -157,12 +170,42 @@ export default function CheckoutPage() {
                   Ver QR y Datos Bancarios
                 </button>
 
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-dark-800 transition-all group overflow-hidden">
+                {/* ZONA DE CARGA MEJORADA */}
+                <label className="flex flex-col items-center justify-center w-full h-auto min-h-[8rem] py-4 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl cursor-pointer hover:bg-slate-50 dark:hover:bg-dark-800 transition-all group overflow-hidden">
                   <Upload className={`w-6 h-6 mb-2 transition-colors ${file ? 'text-neon-green' : 'text-slate-400 group-hover:text-neon-cyan'}`} />
-                  <span className="text-xs text-slate-500 font-mono text-center px-4 truncate w-full">
-                    {file ? <span className="text-neon-green font-bold">{file.name}</span> : "Clic aquí para subir tu comprobante"}
+                  
+                  <span className="text-xs text-slate-500 font-mono text-center px-4 mb-2 truncate w-full">
+                    {file ? (
+                      <span className="text-neon-green font-bold flex items-center justify-center gap-2">
+                        {file.name}
+                      </span>
+                    ) : (
+                      "Sube la captura de tu comprobante"
+                    )}
                   </span>
-                  <input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files && setFile(e.target.files[0])} required />
+                  
+                  {/* ALERTA VISUAL PARA NO USAR LA CÁMARA */}
+                  {!file && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 dark:text-yellow-400 rounded-md mt-1">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      <span className="text-[10px] font-bold tracking-tight text-center leading-none">
+                        ⚠️ Sube el archivo desde tu galería.<br className="sm:hidden" /> NO uses la cámara en vivo.
+                      </span>
+                    </div>
+                  )}
+
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    accept="image/png, image/jpeg, image/jpg, image/webp" 
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        setFile(e.target.files[0]);
+                        setErrorMsg(""); // Limpia errores si selecciona un archivo nuevo
+                      }
+                    }} 
+                    required 
+                  />
                 </label>
               </div>
             )}
