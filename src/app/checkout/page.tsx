@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { Upload, CreditCard, Loader2, QrCode, ShoppingCart, User, Trash2, Landmark, X, LogIn, AlertTriangle } from "lucide-react";
+import { Upload, CreditCard, Loader2, QrCode, ShoppingCart, User, Trash2, Landmark, X, LogIn } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
-import { submitOrder } from "@/actions/order";
+import { submitOrder } from "@/actions/order"; // Server Action simplificado
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/client"; // Cliente para subida directa
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = createClient(); // Inicializamos el cliente de Supabase
   
   const { items, getTotalPrice, getTotalRobux, removeItem, clearCart } = useCartStore();
   const totalRobux = getTotalRobux();
@@ -68,6 +68,9 @@ export default function CheckoutPage() {
     );
   }
 
+  // ==========================================
+  // LÓGICA DE ENVÍO REFACTORIZADA (CLIENT-FIRST UPLOAD)
+  // ==========================================
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) return setErrorMsg("Tu carrito está vacío.");
@@ -75,20 +78,56 @@ export default function CheckoutPage() {
     if (paymentMethod === "transfer") {
       if (!file || !username) return setErrorMsg("Falta tu usuario o comprobante.");
       
-      startTransition(async () => {
-        const formData = new FormData();
-        formData.append("totalRobux", totalRobux.toString());
-        formData.append("totalPrice", totalPrice.toString());
-        formData.append("username", username);
-        formData.append("file", file);
-        formData.append("cartItems", JSON.stringify(items));
+      const fileSizeInMB = file.size / (1024 * 1024);
+      if (fileSizeInMB > 4.5) {
+        return setErrorMsg(`La foto es muy pesada (${fileSizeInMB.toFixed(1)}MB). Por seguridad de la plataforma, el máximo es 4.5MB.`);
+      }
 
-        const result = await submitOrder(formData);
-        if (result.success) {
-          clearCart();
-          router.push("/dashboard?success=true");
-        } else {
-          setErrorMsg(result.error || "Fallo en el servidor.");
+      startTransition(async () => {
+        try {
+          setErrorMsg(""); // Limpiamos errores previos
+
+          // 1. OBTENER SESIÓN EN EL CLIENTE PARA GENERAR EL NOMBRE
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error("Sesión expirada. Vuelve a iniciar sesión.");
+
+          // 2. GENERAR NOMBRE DE ARCHIVO ÚNICO (Como lo hacíamos en el servidor)
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+
+          // 🔥 PASO 3 MÁGICO: Subida directa del archivo desde el cliente a Supabase
+          const { error: uploadError } = await supabase.storage
+            .from('payment-proofs')
+            .upload(fileName, file);
+
+          if (uploadError) throw new Error(`Fallo al subir comprobante a Supabase Storage: ${uploadError.message}`);
+
+          // 4. OBTENER URL PÚBLICA DEL ARCHIVO SUBIDO
+          const { data: { publicUrl } } = supabase.storage
+            .from('payment-proofs')
+            .getPublicUrl(fileName);
+
+          // 5. PREPARAR FORM DATA SIN EL ARCHIVO (Solo datos y URL)
+          const formData = new FormData();
+          formData.append("totalRobux", totalRobux.toString());
+          formData.append("totalPrice", totalPrice.toString());
+          formData.append("username", username);
+          formData.append("cartItems", JSON.stringify(items));
+          
+          // 🔥 PASO 6 CLAVE: Enviar SOLO la URL pública a la Server Action
+          formData.append("publicUrl", publicUrl); 
+
+          // 7. ENVIAR LA ORDEN AL SERVIDOR
+          const result = await submitOrder(formData);
+
+          if (result.success) {
+            clearCart();
+            router.push("/dashboard?success=true");
+          } else {
+            setErrorMsg(result.error || "Fallo en el servidor al registrar la orden.");
+          }
+        } catch (error: any) {
+          setErrorMsg(`🛡️ Error del Firewall: ${error.message}`);
         }
       });
     } else {
@@ -163,32 +202,19 @@ export default function CheckoutPage() {
                         {file.name}
                       </span>
                     ) : (
-                      "Sube o toma una foto del comprobante"
+                      "Sube la captura de tu comprobante"
                     )}
                   </span>
-
+                  
                   <input 
                     type="file" 
                     className="hidden" 
-                    accept="image/*" 
+                    // 🔥 HACK ANTI-CÁMARA: PDF deshabilita la cámara en Android
+                    accept="image/png, image/jpeg, image/jpg, image/webp, application/pdf" 
                     onChange={(e) => {
                       if (e.target.files && e.target.files.length > 0) {
-                        const selectedFile = e.target.files[0];
-                        const fileSizeInMB = selectedFile.size / (1024 * 1024);
-
-                        // 🔥 REVISIÓN INSTANTÁNEA (Solo imágenes, Max 4.5MB) 🔥
-                        if (!selectedFile.type.startsWith('image/')) {
-                          setErrorMsg("⚠️ Formato inválido. Solo se permiten imágenes (JPG, PNG, etc).");
-                          setFile(null);
-                          e.target.value = '';
-                        } else if (fileSizeInMB > 4.5) {
-                          setErrorMsg(`⚠️ La imagen pesa ${fileSizeInMB.toFixed(1)}MB. El límite de seguridad es 4.5MB. Toma la foto desde más lejos o sube una captura.`);
-                          setFile(null);
-                          e.target.value = '';
-                        } else {
-                          setFile(selectedFile);
-                          setErrorMsg(""); 
-                        }
+                        setFile(e.target.files[0]);
+                        setErrorMsg(""); 
                       }
                     }} 
                     required 

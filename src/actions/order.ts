@@ -23,7 +23,7 @@ export async function submitOrder(formData: FormData) {
     
     const { count, error: countError } = await supabase
       .from('orders')
-      .select('*', { count: 'exact', head: true }) // head: true hace que no gaste megas descargando datos
+      .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
       .gte('created_at', twentyFourHoursAgo);
 
@@ -36,11 +36,13 @@ export async function submitOrder(formData: FormData) {
     }
     // ====================================================================
 
-    // Extracción de datos del formulario
+    // Extracción de datos del formulario (Ahora extraemos la URL, NO el archivo)
     const totalRobux = parseInt(formData.get("totalRobux") as string);
     const totalPrice = parseFloat(formData.get("totalPrice") as string);
     const username = formData.get("username") as string;
-    const file = formData.get("file");
+    
+    // 🔥 ESTA ES LA LÍNEA NUEVA QUE RECIBE LA URL PÚBLICA
+    const proofUrl = formData.get("publicUrl") as string; 
     
     const cartItemsRaw = formData.get("cartItems") as string;
     const cartItems = cartItemsRaw ? JSON.parse(cartItemsRaw) : [];
@@ -49,30 +51,16 @@ export async function submitOrder(formData: FormData) {
     if (!totalRobux || !totalPrice || !username || username.trim() === "") {
       throw new Error("Datos corruptos. Operación abortada.");
     }
-    if (!file) throw new Error("El comprobante de pago es obligatorio.");
-    if (!(file instanceof File)) throw new Error("Intento de brecha detectado.");
-    if (file.size > 5 * 1024 * 1024) throw new Error("Archivo demasiado pesado. Máximo 5MB.");
-
-    const validImageTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
-    if (!validImageTypes.includes(file.type)) {
-      throw new Error("FIREWALL ACTIVADO: Solo se permiten imágenes reales.");
+    // Validar que la URL no esté vacía
+    if (!proofUrl || !proofUrl.startsWith("http")) {
+       throw new Error("La URL del comprobante no es válida o está ausente.");
     }
 
-    // Subida del archivo al Storage
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${user.id}-${Date.now()}.${fileExt}`; 
-    
-    const { error: uploadError } = await supabase.storage
-      .from('payment-proofs')
-      .upload(fileName, file);
+    // ====================================================================
+    // ELIMINADO: Todo el código de subida al Storage que estaba aquí
+    // ====================================================================
 
-    if (uploadError) throw new Error("Fallo en la matriz al subir el comprobante.");
-
-    const { data: { publicUrl } } = supabase.storage
-      .from('payment-proofs')
-      .getPublicUrl(fileName);
-
-    // Guardado final en la Base de Datos
+    // Guardado final en la Base de Datos usando la URL que recibimos
     const { error: dbError } = await supabase
       .from('orders')
       .insert({
@@ -80,7 +68,8 @@ export async function submitOrder(formData: FormData) {
         roblox_username: username,
         amount_robux: totalRobux,
         price_usd: totalPrice,
-        proof_url: publicUrl,
+        // Usamos la URL pública directa que recibimos
+        proof_url: proofUrl, 
         status: 'PENDING',
         cart_items: cartItems
       });
@@ -94,7 +83,6 @@ export async function submitOrder(formData: FormData) {
     return { success: true };
 
   } catch (error: any) {
-    // Esto enviará el mensaje de error de nuestro Firewall al Checkout
     return { success: false, error: error.message || "Error interno del sistema" };
   }
 }
