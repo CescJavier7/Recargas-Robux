@@ -6,16 +6,7 @@ import { ShieldAlert, CheckCircle, XCircle, ExternalLink, User, DollarSign, Pack
 
 export const dynamic = "force-dynamic";
 
-// 🔥 CAMBIO CRÍTICO: Definimos que searchParams es una Promesa
-interface PageProps {
-  searchParams: Promise<{ view?: string }>;
-}
-
-export default async function AdminPanel(props: PageProps) {
-  // 🔥 PASO 1: Esperamos a que las searchParams se resuelvan
-  const searchParams = await props.searchParams;
-  const viewId = searchParams.view;
-
+export default async function AdminPanel() {
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -87,9 +78,6 @@ export default async function AdminPanel(props: PageProps) {
       revalidatePath("/dashboard");
     }
   }
-
-  // 🔥 PASO 2: Ahora que tenemos el viewId resuelto, buscamos la orden
-  const selectedOrder = viewId ? orders?.find(o => String(o.id) === String(viewId)) : null;
 
   return (
     <main className="min-h-screen max-w-7xl mx-auto py-8 px-4 sm:px-6 relative">
@@ -186,8 +174,8 @@ export default async function AdminPanel(props: PageProps) {
                   <td className="sticky right-0 bg-white dark:bg-dark-900 group-hover:bg-slate-50 dark:group-hover:bg-dark-800 px-6 py-5 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] dark:shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.3)] z-10">
                     <div className="flex justify-center gap-2">
                       
-                      {/* 🔥 BOTÓN DEL OJITO (USANDO <A> PARA RECARGA TOTAL) 🔥 */}
-                      <a href={`/admin?view=${order.id}`} title="Ver Detalles" className="p-2.5 bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan rounded-xl hover:bg-neon-cyan hover:text-dark-900 transition-all active:scale-90 flex items-center justify-center">
+                      {/* 🔥 BOTÓN DEL OJITO: Activa el modal vía CSS Hash 🔥 */}
+                      <a href={`#modal-${order.id}`} title="Ver Detalles" className="p-2.5 bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan rounded-xl hover:bg-neon-cyan hover:text-dark-900 transition-all active:scale-90 flex items-center justify-center">
                         <Eye className="w-4 h-4" />
                       </a>
 
@@ -225,16 +213,21 @@ export default async function AdminPanel(props: PageProps) {
       </div>
 
       {/* ========================================================= */}
-      {/* 🚨 MODAL DE DETALLES (RENDERIZADO EN SERVIDOR) 🚨 */}
+      {/* 🚨 MODALES DE DETALLES: RENDERIZADOS CON CSS :TARGET 🚨 */}
       {/* ========================================================= */}
-      {selectedOrder && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      {orders?.map((order) => (
+        <div 
+          key={`modal-${order.id}`} 
+          id={`modal-${order.id}`} 
+          className="hidden target:flex fixed inset-0 z-[100] items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+        >
           <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden">
             <div className="flex justify-between items-center p-5 border-b border-slate-800">
               <h3 className="font-display font-black text-white uppercase tracking-widest text-lg flex items-center gap-2">
                 <Package className="w-5 h-5 text-neon-cyan" /> Detalles del Pedido
               </h3>
-              <a href="/admin" className="text-slate-500 hover:text-neon-pink bg-slate-800 p-1.5 rounded-full transition-all">
+              {/* CERRAR: Envía a un hash vacío (#_) para ocultar el modal */}
+              <a href="#_" className="text-slate-500 hover:text-neon-pink bg-slate-800 p-1.5 rounded-full transition-all">
                 <X className="w-4 h-4" />
               </a>
             </div>
@@ -243,7 +236,7 @@ export default async function AdminPanel(props: PageProps) {
               <div>
                 <p className="text-xs text-slate-500 font-mono uppercase tracking-widest mb-3">Items Comprados</p>
                 <div className="space-y-2">
-                  {selectedOrder.cart_items?.map((item: any, idx: number) => (
+                  {order.cart_items?.map((item: any, idx: number) => (
                     <div key={idx} className="flex justify-between items-center bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
                       <span className="text-sm font-bold text-slate-300">{item.robux} R$</span>
                       <span className="text-sm font-mono text-neon-cyan">${item.price.toFixed(2)}</span>
@@ -255,21 +248,21 @@ export default async function AdminPanel(props: PageProps) {
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
                   <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">Destino Roblox</p>
-                  <p className="text-sm font-black text-white truncate">{selectedOrder.roblox_username}</p>
+                  <p className="text-sm font-black text-white truncate">{order.roblox_username}</p>
                 </div>
                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
                   <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">Total a Inyectar</p>
-                  <p className="text-sm font-black text-yellow-400">{selectedOrder.amount_robux} R$</p>
+                  <p className="text-sm font-black text-yellow-400">{order.amount_robux} R$</p>
                 </div>
               </div>
 
-              <a href="/admin" className="block w-full py-3 text-center bg-slate-800 hover:bg-slate-700 text-white font-bold uppercase text-xs tracking-widest rounded-xl transition-colors">
+              <a href="#_" className="block w-full py-3 text-center bg-slate-800 hover:bg-slate-700 text-white font-bold uppercase text-xs tracking-widest rounded-xl transition-colors">
                 Cerrar Detalles
               </a>
             </div>
           </div>
         </div>
-      )}
+      ))}
 
     </main>
   );
