@@ -15,7 +15,7 @@ export default async function AdminPanel() {
   );
 
 // ==========================================
-  // 🛡️ GUARDIA DE SEGURIDAD DEL ADMIN (BLINDADO)
+  // 🛡️ GUARDIA DE SEGURIDAD DEL ADMIN (FUERZA BRUTA)
   // ==========================================
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   
@@ -23,18 +23,12 @@ export default async function AdminPanel() {
     redirect("/login");
   }
 
-  // 1. Normalizamos los correos: todo a minúsculas y quitamos espacios en blanco
   const googleEmail = user.email?.toLowerCase().trim();
-  const envEmail = process.env.ADMIN_EMAIL?.toLowerCase().trim();
+  
+  // 🔥 FORZAMOS EL CORREO EXACTO IGNORANDO LAS VARIABLES DE ENTORNO
+  const adminEmail = "javiercaiza220158@gmail.com";
 
-  // 🚨 EL CHIVATO (MIRA TU TERMINAL DE VS CODE) 🚨
-  console.log("==== DETECTIVE DE SEGURIDAD ====");
-  console.log("Correo de Google :", googleEmail);
-  console.log("Correo del .env  :", envEmail);
-  console.log("¿Son iguales?    :", googleEmail === envEmail);
-  console.log("================================");
-
-  if (googleEmail !== envEmail) {
+  if (googleEmail !== adminEmail) {
     redirect("/"); 
   }
   // ==========================================
