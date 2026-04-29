@@ -20,7 +20,7 @@ export default async function AdminPanel({
   );
 
   // ==========================================
-  // 🛡️ GUARDIA DE SEGURIDAD (.ENV)
+  // 🛡️ GUARDIA DE SEGURIDAD (FAIL-SAFE)
   // ==========================================
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   
@@ -29,9 +29,16 @@ export default async function AdminPanel({
   }
 
   const googleEmail = user.email?.toLowerCase().trim();
-  const adminEmail = process.env.ADMIN_EMAIL?.toLowerCase().trim();
+  
+  // Leemos la variable de Vercel
+  const envEmail = process.env.ADMIN_EMAIL?.toLowerCase().trim();
+  // Correo de respaldo indestructible por si Vercel falla
+  const backupEmail = "javiercaiza220158@gmail.com";
 
-  if (!adminEmail || googleEmail !== adminEmail) {
+  // Autorizamos si coincide con el ENV *O* con el Respaldo
+  const isAuthorized = (envEmail && googleEmail === envEmail) || (googleEmail === backupEmail);
+
+  if (!isAuthorized) {
     redirect("/"); 
   }
   // ==========================================
@@ -55,8 +62,10 @@ export default async function AdminPanel({
     );
 
     const { data: { user: adminUser } } = await supabaseServer.auth.getUser();
+    const adminGoogleEmail = adminUser?.email?.toLowerCase().trim();
     
-    if (adminUser?.email?.toLowerCase().trim() === process.env.ADMIN_EMAIL?.toLowerCase().trim()) {
+    // Verificamos seguridad en el Server Action también
+    if ((envEmail && adminGoogleEmail === envEmail) || (adminGoogleEmail === backupEmail)) {
       await supabaseServer.from("orders").update({ status: newStatus }).eq("id", orderId);
       revalidatePath("/admin"); 
       revalidatePath("/dashboard");
@@ -76,8 +85,10 @@ export default async function AdminPanel({
     );
 
     const { data: { user: adminUser } } = await supabaseServer.auth.getUser();
+    const adminGoogleEmail = adminUser?.email?.toLowerCase().trim();
     
-    if (adminUser?.email?.toLowerCase().trim() === process.env.ADMIN_EMAIL?.toLowerCase().trim()) {
+    // Verificamos seguridad en el Server Action también
+    if ((envEmail && adminGoogleEmail === envEmail) || (adminGoogleEmail === backupEmail)) {
       await supabaseServer.from("orders").delete().eq("id", orderId);
       revalidatePath("/admin"); 
       revalidatePath("/dashboard");
