@@ -2,11 +2,17 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { ShieldAlert, CheckCircle, XCircle, ExternalLink, User, DollarSign, Package, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { ShieldAlert, CheckCircle, XCircle, ExternalLink, User, DollarSign, Package, Trash2, Eye, X } from "lucide-react";
 
+// Forzamos a Vercel a no cachear esta página NUNCA
 export const dynamic = "force-dynamic";
 
-export default async function AdminPanel() {
+export default async function AdminPanel({
+  searchParams,
+}: {
+  searchParams: { view?: string };
+}) {
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,7 +21,7 @@ export default async function AdminPanel() {
   );
 
   // ==========================================
-  // 🛡️ GUARDIA DE SEGURIDAD DEL ADMIN (FUERZA BRUTA)
+  // 🛡️ GUARDIA DE SEGURIDAD (.ENV RESTAURADO)
   // ==========================================
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   
@@ -24,11 +30,10 @@ export default async function AdminPanel() {
   }
 
   const googleEmail = user.email?.toLowerCase().trim();
-  
-  // 🔥 QUEMAMOS EL CORREO PARA EVITAR PROBLEMAS DE VERCEL
-  const adminEmail = "javiercaiza220158@gmail.com";
+  const adminEmail = process.env.ADMIN_EMAIL?.toLowerCase().trim();
 
-  if (googleEmail !== adminEmail) {
+  // Si la variable de entorno no existe o no coincide, expulsamos
+  if (!adminEmail || googleEmail !== adminEmail) {
     redirect("/"); 
   }
   // ==========================================
@@ -38,7 +43,7 @@ export default async function AdminPanel() {
     .select("*")
     .order("created_at", { ascending: false });
 
-  // 🛠️ ACCIÓN 1: ACTUALIZAR ESTADO (Aprobar/Rechazar)
+  // 🛠️ ACCIÓN 1: ACTUALIZAR ESTADO
   async function updateOrderStatus(formData: FormData) {
     "use server";
     const orderId = formData.get("orderId") as string;
@@ -53,15 +58,14 @@ export default async function AdminPanel() {
 
     const { data: { user: adminUser } } = await supabaseServer.auth.getUser();
     
-    // 🔥 TAMBIÉN USAMOS EL CORREO QUEMADO AQUÍ ADENTRO
-    if (adminUser?.email?.toLowerCase().trim() === adminEmail) {
+    if (adminUser?.email?.toLowerCase().trim() === process.env.ADMIN_EMAIL?.toLowerCase().trim()) {
       await supabaseServer.from("orders").update({ status: newStatus }).eq("id", orderId);
       revalidatePath("/admin"); 
       revalidatePath("/dashboard");
     }
   }
 
-  // 🛠️ ACCIÓN 2: ELIMINAR ORDEN POR COMPLETO DE LA BASE DE DATOS
+  // 🛠️ ACCIÓN 2: ELIMINAR DE LA BD
   async function deleteOrderAction(formData: FormData) {
     "use server";
     const orderId = formData.get("orderId") as string;
@@ -75,18 +79,19 @@ export default async function AdminPanel() {
 
     const { data: { user: adminUser } } = await supabaseServer.auth.getUser();
     
-    // 🔥 VALIDACIÓN DE SEGURIDAD ANTES DE BORRAR
-    if (adminUser?.email?.toLowerCase().trim() === adminEmail) {
+    if (adminUser?.email?.toLowerCase().trim() === process.env.ADMIN_EMAIL?.toLowerCase().trim()) {
       await supabaseServer.from("orders").delete().eq("id", orderId);
       revalidatePath("/admin"); 
       revalidatePath("/dashboard");
     }
   }
 
+  // Buscamos la orden si el admin hizo clic en "Ver detalles"
+  const selectedOrder = searchParams.view ? orders?.find(o => o.id === searchParams.view) : null;
+
   return (
-    <main className="min-h-screen max-w-7xl mx-auto py-8 px-4 sm:px-6">
+    <main className="min-h-screen max-w-7xl mx-auto py-8 px-4 sm:px-6 relative">
       
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 border-b border-slate-200 dark:border-slate-800 pb-6">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-neon-pink/10 rounded-2xl">
@@ -145,23 +150,10 @@ export default async function AdminPanel() {
                   </td>
 
                   <td className="px-6 py-5">
-                    {order.cart_items && order.cart_items.length > 0 ? (
-                      <div className="flex flex-col gap-1.5">
-                        {order.cart_items.map((item: any, idx: number) => (
-                          <span key={idx} className="inline-flex items-center w-fit px-2 py-0.5 rounded-md bg-slate-100 dark:bg-dark-800 border border-slate-200 dark:border-slate-700 text-[10px] font-mono text-slate-600 dark:text-slate-400">
-                            {item.robux} R$ <span className="mx-1 opacity-50">|</span> ${item.price.toFixed(2)}
-                          </span>
-                        ))}
-                        <div className="mt-1 flex items-center gap-1 text-xs font-black text-yellow-600 dark:text-yellow-400">
-                          <span className="uppercase text-[9px] tracking-widest">Total:</span> {order.amount_robux} R$
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="inline-flex items-center px-3 py-1 rounded-lg bg-yellow-400/10 border border-yellow-400/20">
-                        <span className="text-yellow-600 dark:text-yellow-400 font-black text-xs leading-none">{order.amount_robux}</span>
-                        <span className="ml-1 text-[9px] text-yellow-600/70 dark:text-yellow-400/70 font-bold uppercase">R$</span>
-                      </div>
-                    )}
+                    <div className="inline-flex items-center px-3 py-1 rounded-lg bg-yellow-400/10 border border-yellow-400/20">
+                      <span className="text-yellow-600 dark:text-yellow-400 font-black text-xs leading-none">{order.amount_robux}</span>
+                      <span className="ml-1 text-[9px] text-yellow-600/70 dark:text-yellow-400/70 font-bold uppercase">R$</span>
+                    </div>
                   </td>
                   <td className="px-6 py-5">
                     <span className="font-mono font-bold text-neon-cyan">${order.price_usd}</span>
@@ -191,7 +183,12 @@ export default async function AdminPanel() {
 
                   <td className="sticky right-0 bg-white dark:bg-dark-900 group-hover:bg-slate-50 dark:group-hover:bg-dark-800 px-6 py-5 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] dark:shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.3)] z-10">
                     <div className="flex justify-center gap-2">
-                      {/* BOTÓN: APROBAR */}
+                      
+                      {/* 🔥 BOTÓN DEL OJITO (VER DETALLES) 🔥 */}
+                      <Link href={`/admin?view=${order.id}`} scroll={false} title="Ver Detalles" className="p-2.5 bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan rounded-xl hover:bg-neon-cyan hover:text-dark-900 transition-all active:scale-90 flex items-center justify-center">
+                        <Eye className="w-4 h-4" />
+                      </Link>
+
                       <form action={updateOrderStatus}>
                         <input type="hidden" name="orderId" value={order.id} />
                         <input type="hidden" name="status" value="COMPLETED" />
@@ -200,7 +197,6 @@ export default async function AdminPanel() {
                         </button>
                       </form>
                       
-                      {/* BOTÓN: RECHAZAR */}
                       <form action={updateOrderStatus}>
                         <input type="hidden" name="orderId" value={order.id} />
                         <input type="hidden" name="status" value="CANCELLED" />
@@ -209,13 +205,7 @@ export default async function AdminPanel() {
                         </button>
                       </form>
 
-                      {/* 🔥 NUEVO BOTÓN: ELIMINAR DE LA BASE DE DATOS 🔥 */}
-                      <form action={deleteOrderAction} onSubmit={(e) => {
-                        // Agregamos una confirmación en el navegador para evitar clics por accidente
-                        if(!window.confirm('¿Estás SEGURO de querer borrar este pedido? Desaparecerá de tu panel y del cliente para siempre.')) {
-                          e.preventDefault();
-                        }
-                      }}>
+                      <form action={deleteOrderAction}>
                         <input type="hidden" name="orderId" value={order.id} />
                         <button title="Eliminar Permanentemente" className="p-2.5 bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-neon-pink rounded-xl hover:bg-rose-500 hover:text-white transition-all active:scale-90">
                           <Trash2 className="w-4 h-4" />
@@ -227,13 +217,60 @@ export default async function AdminPanel() {
               ))}
             </tbody>
           </table>
-          {(!orders || orders.length === 0) && (
-            <div className="text-center py-20 bg-slate-50/50 dark:bg-dark-800/20 italic text-slate-400 text-sm">
-              Esperando nuevas transmisiones de datos...
-            </div>
-          )}
         </div>
       </div>
+
+      {/* ========================================================= */}
+      {/* 🚨 SERVER-SIDE MODAL DE DETALLES DE LA ORDEN 🚨 */}
+      {/* ========================================================= */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden">
+            
+            <div className="flex justify-between items-center p-5 border-b border-slate-800">
+              <h3 className="font-display font-black text-white uppercase tracking-widest text-lg flex items-center gap-2">
+                <Package className="w-5 h-5 text-neon-cyan" /> Detalles del Pedido
+              </h3>
+              <Link href="/admin" scroll={false} className="text-slate-500 hover:text-neon-pink bg-slate-800 p-1.5 rounded-full transition-all">
+                <X className="w-4 h-4" />
+              </Link>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Desglose del Carrito */}
+              <div>
+                <p className="text-xs text-slate-500 font-mono uppercase tracking-widest mb-3">Items Comprados</p>
+                <div className="space-y-2">
+                  {selectedOrder.cart_items?.map((item: any, idx: number) => (
+                    <div key={idx} className="flex justify-between items-center bg-slate-800/50 p-3 rounded-xl border border-slate-700/50">
+                      <span className="text-sm font-bold text-slate-300">{item.robux} R$</span>
+                      <span className="text-sm font-mono text-neon-cyan">${item.price.toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Información del Cliente */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
+                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">Destino Roblox</p>
+                  <p className="text-sm font-black text-white truncate">{selectedOrder.roblox_username}</p>
+                </div>
+                <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
+                  <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-1">Total a Inyectar</p>
+                  <p className="text-sm font-black text-yellow-400">{selectedOrder.amount_robux} R$</p>
+                </div>
+              </div>
+
+              <Link href="/admin" scroll={false} className="block w-full py-3 text-center bg-slate-800 hover:bg-slate-700 text-white font-bold uppercase text-xs tracking-widest rounded-xl transition-colors">
+                Cerrar Detalles
+              </Link>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
