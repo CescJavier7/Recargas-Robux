@@ -16,6 +16,10 @@ export async function submitOrder(formData: FormData) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Acceso denegado. Debes iniciar sesión.");
 
+    // 🔥 NUEVO: Extraemos el correo y nombre real de la cuenta de Google
+    const userEmail = user?.email || "Correo oculto";
+    const userName = user?.user_metadata?.name || user?.user_metadata?.full_name || "Usuario Nexus";
+
     // ====================================================================
     // 🛡️ FIREWALL ANTI-BOTS: LÍMITE DE 5 RECARGAS POR 24 HORAS
     // ====================================================================
@@ -36,39 +40,31 @@ export async function submitOrder(formData: FormData) {
     }
     // ====================================================================
 
-    // Extracción de datos del formulario (Ahora extraemos la URL, NO el archivo)
     const totalRobux = parseInt(formData.get("totalRobux") as string);
     const totalPrice = parseFloat(formData.get("totalPrice") as string);
     const username = formData.get("username") as string;
-    
-    // 🔥 ESTA ES LA LÍNEA NUEVA QUE RECIBE LA URL PÚBLICA
     const proofUrl = formData.get("publicUrl") as string; 
     
     const cartItemsRaw = formData.get("cartItems") as string;
     const cartItems = cartItemsRaw ? JSON.parse(cartItemsRaw) : [];
 
-    // Validaciones estrictas de datos corruptos
     if (!totalRobux || !totalPrice || !username || username.trim() === "") {
       throw new Error("Datos corruptos. Operación abortada.");
     }
-    // Validar que la URL no esté vacía
     if (!proofUrl || !proofUrl.startsWith("http")) {
        throw new Error("La URL del comprobante no es válida o está ausente.");
     }
 
-    // ====================================================================
-    // ELIMINADO: Todo el código de subida al Storage que estaba aquí
-    // ====================================================================
-
-    // Guardado final en la Base de Datos usando la URL que recibimos
+    // Guardado final en la Base de Datos incluyendo Correo y Nombre
     const { error: dbError } = await supabase
       .from('orders')
       .insert({
         user_id: user.id,
+        user_email: userEmail, // Sello del correo
+        user_name: userName,   // Sello del nombre
         roblox_username: username,
         amount_robux: totalRobux,
         price_usd: totalPrice,
-        // Usamos la URL pública directa que recibimos
         proof_url: proofUrl, 
         status: 'PENDING',
         cart_items: cartItems

@@ -1,8 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { ShieldAlert, CheckCircle, XCircle, ExternalLink, User, Hash, DollarSign, Package } from "lucide-react";
-import OrderDetailsModal from "@/components/OrderDetailsModal";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,20 @@ export default async function AdminPanel() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { cookies: { getAll() { return cookieStore.getAll(); } } }
   );
+
+  // ==========================================
+  // 🛡️ GUARDIA DE SEGURIDAD DEL ADMIN
+  // ==========================================
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  
+  if (authError || !user) {
+    redirect("/login");
+  }
+
+  if (user.email !== process.env.ADMIN_EMAIL) {
+    redirect("/"); 
+  }
+  // ==========================================
 
   const { data: orders } = await supabase
     .from("orders")
@@ -31,9 +45,12 @@ export default async function AdminPanel() {
       { cookies: { getAll() { return cookieStoreServer.getAll(); } } }
     );
 
-    await supabaseServer.from("orders").update({ status: newStatus }).eq("id", orderId);
-    revalidatePath("/admin"); 
-    revalidatePath("/dashboard");
+    const { data: { user: adminUser } } = await supabaseServer.auth.getUser();
+    if (adminUser?.email === process.env.ADMIN_EMAIL) {
+      await supabaseServer.from("orders").update({ status: newStatus }).eq("id", orderId);
+      revalidatePath("/admin"); 
+      revalidatePath("/dashboard");
+    }
   }
 
   return (
@@ -60,19 +77,16 @@ export default async function AdminPanel() {
         </div>
       </div>
 
-      {/* Contenedor de Tabla con Scroll Horizontal */}
       <div className="bg-white dark:bg-dark-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl dark:shadow-none overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 dark:bg-dark-800/50 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] min-w-[180px]"><div className="flex items-center gap-2"><User className="w-3 h-3"/> Usuario</div></th>
+                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] min-w-[220px]"><div className="flex items-center gap-2"><User className="w-3 h-3"/> Cliente y Destino</div></th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] min-w-[140px]"><div className="flex items-center gap-2"><Package className="w-3 h-3"/> Paquete</div></th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] min-w-[100px]"><div className="flex items-center gap-2"><DollarSign className="w-3 h-3"/> Pago</div></th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] min-w-[140px]">Comprobante</th>
                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] min-w-[140px]">Estado</th>
-                
-                {/* COLUMNA STICKY: Se queda fija a la derecha */}
                 <th className="sticky right-0 bg-slate-50 dark:bg-dark-800 px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-center shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] dark:shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.3)] z-10">
                   Acciones
                 </th>
@@ -81,14 +95,27 @@ export default async function AdminPanel() {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {orders?.map((order) => (
                 <tr key={order.id} className="group hover:bg-slate-50/50 dark:hover:bg-dark-800/30 transition-colors">
+                  
+                  {/* 👇 NUEVA CELDA DE USUARIO OPTIMIZADA 👇 */}
                   <td className="px-6 py-5">
                     <div className="flex flex-col">
-                      <span className="font-bold text-slate-900 dark:text-white">{order.roblox_username}</span>
-                      <span className="text-[9px] font-mono text-slate-400 mt-1 uppercase tracking-tighter">ID: {order.id.split('-')[0]}</span>
+                      <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 truncate max-w-[200px]">
+                        {order.user_name || "Cliente Nexus"}
+                      </span>
+                      <span className="text-[10px] text-slate-500 mb-2 truncate max-w-[200px]">
+                        {order.user_email || "Correo no registrado"}
+                      </span>
+                      
+                      {/* Recuadro resaltado para el usuario de Roblox */}
+                      <div className="flex items-center gap-1.5 px-2 py-1 bg-neon-cyan/10 border border-neon-cyan/20 rounded-md w-fit">
+                        <User className="w-3 h-3 text-neon-cyan" />
+                        <span className="text-[10px] font-bold text-neon-cyan">Roblox: {order.roblox_username}</span>
+                      </div>
+                      
+                      <span className="text-[9px] font-mono text-slate-400 mt-2 uppercase tracking-tighter">ID: {order.id.split('-')[0]}</span>
                     </div>
                   </td>
-                  
-                  {/* 👇 COLUMNA DE PAQUETE ACTUALIZADA CON DESGLOSE */}
+
                   <td className="px-6 py-5">
                     {order.cart_items && order.cart_items.length > 0 ? (
                       <div className="flex flex-col gap-1.5">
@@ -102,14 +129,12 @@ export default async function AdminPanel() {
                         </div>
                       </div>
                     ) : (
-                      // Fallback visual para las órdenes viejas
                       <div className="inline-flex items-center px-3 py-1 rounded-lg bg-yellow-400/10 border border-yellow-400/20">
                         <span className="text-yellow-600 dark:text-yellow-400 font-black text-xs leading-none">{order.amount_robux}</span>
                         <span className="ml-1 text-[9px] text-yellow-600/70 dark:text-yellow-400/70 font-bold uppercase">R$</span>
                       </div>
                     )}
                   </td>
-
                   <td className="px-6 py-5">
                     <span className="font-mono font-bold text-neon-cyan">${order.price_usd}</span>
                   </td>
@@ -136,13 +161,8 @@ export default async function AdminPanel() {
                     </span>
                   </td>
 
-                  {/* CELDA STICKY: Acciones siempre visibles */}
                   <td className="sticky right-0 bg-white dark:bg-dark-900 group-hover:bg-slate-50 dark:group-hover:bg-dark-800 px-6 py-5 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] dark:shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.3)] z-10">
                     <div className="flex justify-center gap-2">
-                      
-                      {/* 🔥 AQUÍ INSERTAMOS EL NUEVO BOTÓN DE DETALLES 🔥 */}
-                      <OrderDetailsModal order={order} />
-
                       <form action={updateOrderStatus}>
                         <input type="hidden" name="orderId" value={order.id} />
                         <input type="hidden" name="status" value="COMPLETED" />
