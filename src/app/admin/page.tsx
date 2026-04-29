@@ -2,7 +2,6 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { ShieldAlert, CheckCircle, XCircle, ExternalLink, User, DollarSign, Package, Trash2, Eye, X } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +19,7 @@ export default async function AdminPanel({
   );
 
   // ==========================================
-  // 🛡️ GUARDIA DE SEGURIDAD (FAIL-SAFE)
+  // 🛡️ GUARDIA DE SEGURIDAD DIRECTO
   // ==========================================
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   
@@ -29,16 +28,9 @@ export default async function AdminPanel({
   }
 
   const googleEmail = user.email?.toLowerCase().trim();
-  
-  // Leemos la variable de Vercel
-  const envEmail = process.env.ADMIN_EMAIL?.toLowerCase().trim();
-  // Correo de respaldo indestructible por si Vercel falla
-  const backupEmail = "javiercaiza220158@gmail.com";
+  const adminEmail = "javiercaiza220158@gmail.com"; // Tu correo directo y sin problemas
 
-  // Autorizamos si coincide con el ENV *O* con el Respaldo
-  const isAuthorized = (envEmail && googleEmail === envEmail) || (googleEmail === backupEmail);
-
-  if (!isAuthorized) {
+  if (googleEmail !== adminEmail) {
     redirect("/"); 
   }
   // ==========================================
@@ -62,10 +54,8 @@ export default async function AdminPanel({
     );
 
     const { data: { user: adminUser } } = await supabaseServer.auth.getUser();
-    const adminGoogleEmail = adminUser?.email?.toLowerCase().trim();
     
-    // Verificamos seguridad en el Server Action también
-    if ((envEmail && adminGoogleEmail === envEmail) || (adminGoogleEmail === backupEmail)) {
+    if (adminUser?.email?.toLowerCase().trim() === adminEmail) {
       await supabaseServer.from("orders").update({ status: newStatus }).eq("id", orderId);
       revalidatePath("/admin"); 
       revalidatePath("/dashboard");
@@ -85,17 +75,16 @@ export default async function AdminPanel({
     );
 
     const { data: { user: adminUser } } = await supabaseServer.auth.getUser();
-    const adminGoogleEmail = adminUser?.email?.toLowerCase().trim();
     
-    // Verificamos seguridad en el Server Action también
-    if ((envEmail && adminGoogleEmail === envEmail) || (adminGoogleEmail === backupEmail)) {
+    if (adminUser?.email?.toLowerCase().trim() === adminEmail) {
       await supabaseServer.from("orders").delete().eq("id", orderId);
       revalidatePath("/admin"); 
       revalidatePath("/dashboard");
     }
   }
 
-  const selectedOrder = searchParams.view ? orders?.find(o => o.id === searchParams.view) : null;
+  // Comprobación de orden seleccionada
+  const selectedOrder = searchParams.view ? orders?.find(o => String(o.id) === String(searchParams.view)) : null;
 
   return (
     <main className="min-h-screen max-w-7xl mx-auto py-8 px-4 sm:px-6 relative">
@@ -191,9 +180,11 @@ export default async function AdminPanel({
 
                   <td className="sticky right-0 bg-white dark:bg-dark-900 group-hover:bg-slate-50 dark:group-hover:bg-dark-800 px-6 py-5 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] dark:shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.3)] z-10">
                     <div className="flex justify-center gap-2">
-                      <Link href={`/admin?view=${order.id}`} scroll={false} title="Ver Detalles" className="p-2.5 bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan rounded-xl hover:bg-neon-cyan hover:text-dark-900 transition-all active:scale-90 flex items-center justify-center">
+                      
+                      {/* 🔥 BOTÓN DEL OJITO (CON ETIQUETA <a> NATIVA) 🔥 */}
+                      <a href={`/admin?view=${order.id}`} title="Ver Detalles" className="p-2.5 bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan rounded-xl hover:bg-neon-cyan hover:text-dark-900 transition-all active:scale-90 flex items-center justify-center">
                         <Eye className="w-4 h-4" />
-                      </Link>
+                      </a>
 
                       <form action={updateOrderStatus}>
                         <input type="hidden" name="orderId" value={order.id} />
@@ -226,6 +217,9 @@ export default async function AdminPanel({
         </div>
       </div>
 
+      {/* ========================================================= */}
+      {/* 🚨 SERVER-SIDE MODAL DE DETALLES DE LA ORDEN 🚨 */}
+      {/* ========================================================= */}
       {selectedOrder && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden">
@@ -233,9 +227,10 @@ export default async function AdminPanel({
               <h3 className="font-display font-black text-white uppercase tracking-widest text-lg flex items-center gap-2">
                 <Package className="w-5 h-5 text-neon-cyan" /> Detalles del Pedido
               </h3>
-              <Link href="/admin" scroll={false} className="text-slate-500 hover:text-neon-pink bg-slate-800 p-1.5 rounded-full transition-all">
+              {/* 🔥 BOTÓN DE CERRAR CON <a> NATIVA 🔥 */}
+              <a href="/admin" className="text-slate-500 hover:text-neon-pink bg-slate-800 p-1.5 rounded-full transition-all">
                 <X className="w-4 h-4" />
-              </Link>
+              </a>
             </div>
 
             <div className="p-6 space-y-6">
@@ -262,9 +257,10 @@ export default async function AdminPanel({
                 </div>
               </div>
 
-              <Link href="/admin" scroll={false} className="block w-full py-3 text-center bg-slate-800 hover:bg-slate-700 text-white font-bold uppercase text-xs tracking-widest rounded-xl transition-colors">
+              {/* 🔥 BOTÓN DE CERRAR INFERIOR CON <a> NATIVA 🔥 */}
+              <a href="/admin" className="block w-full py-3 text-center bg-slate-800 hover:bg-slate-700 text-white font-bold uppercase text-xs tracking-widest rounded-xl transition-colors">
                 Cerrar Detalles
-              </Link>
+              </a>
             </div>
           </div>
         </div>
