@@ -285,12 +285,12 @@ export default function CheckoutPage() {
             <div className="p-6 flex flex-col items-center text-center space-y-6">
               <div className="w-48 h-48 bg-white p-2 rounded-2xl border-4 border-neon-cyan shadow-[0_0_30px_rgba(0,240,255,0.2)] relative flex items-center justify-center overflow-hidden">
                  <span className="text-slate-400 text-xs font-mono px-2">Coloca tu <br/>imagen QR aquí</span>
-                 {/* <img src="/mi-qr.png" alt="Código QR De Una" className="w-full h-full object-contain" /> */}
+                 {<img src="/mi-qr.png" alt="Código QR De Una" className="w-full h-full object-contain" /> }
               </div>
               
               <div className="w-full space-y-3 text-sm font-mono bg-slate-50 dark:bg-dark-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 text-left">
                 <p className="text-neon-cyan font-bold uppercase border-b border-slate-200 dark:border-slate-700 pb-2 mb-2 tracking-widest">
-                  C. Montatixe
+                  Kevin Javier Montatixe
                 </p>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 text-xs">Pichincha (Ahorros):</span>
